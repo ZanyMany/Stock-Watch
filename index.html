@@ -98,6 +98,12 @@ canvas{width:100%;height:280px;display:block}
 .chartbox{position:relative}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:8px}
 .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+#chart{touch-action:pan-y;cursor:ew-resize}
+.scrubrow{display:flex;align-items:center;gap:10px;margin-top:10px}
+.scrubrow input{flex:1}
+.readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:6px 12px;margin-top:8px;font-size:13px}
+.readout b{display:block;font-family:var(--display);font-size:15px;font-weight:600}
+.readout span{color:var(--muted);font-size:12px}
 .tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12px;font-family:var(--display);display:none;max-width:100%;white-space:normal}
 table{width:100%;border-collapse:collapse;font-size:14px}
 td,th{padding:7px 4px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
@@ -176,6 +182,12 @@ tr:last-child td{border-bottom:0}
         <canvas id="chart" aria-label="Actual and simulated price"></canvas>
         <div class="tip" id="tip"></div>
       </div>
+      <div class="scrubrow">
+        <label for="scrub" style="display:block;min-width:0"><span class="num" id="scrubDate" style="font-size:14px;color:var(--ink);font-weight:600">–</span></label>
+        <input id="scrub" type="range" min="0" max="10" value="0" aria-label="Pick a date on the chart">
+      </div>
+      <div class="readout" id="readout"></div>
+      <p class="note" style="margin-top:4px">Drag across the chart or the slider to see any date.</p>
       <div class="legend">
         <span><i style="background:var(--ink)"></i>Actual price</span>
         <span><i style="background:var(--guess)"></i>Claude's guess</span>
@@ -394,7 +406,7 @@ tr:last-child td{border-bottom:0}
     $("volNote").textContent="Default swing size ("+v+"%) comes from "+cur.t+"'s actual daily moves recently.";
     $("evLbl").textContent="Event: "+cur.event.label+" ("+shortDate(cur.event.d)+"). Chance and one-day move for each outcome.";
     const ids=[["pHit","mHit"],["pOk","mOk"],["pBad","mBad"]]; ids.forEach((p,i)=>{ $(p[0]).value=cur.event.s[i][0]; $(p[1]).value=cur.event.s[i][1]; });
-    labels(); fillInputs(); position(); runSim();
+    scrubT=0; labels(); fillInputs(); position(); runSim();
     try{ history.replaceState(null,"","#"+cur.t.toLowerCase()); }catch(e){}
     window.scrollTo(0,0);
   }
@@ -460,6 +472,7 @@ tr:last-child td{border-bottom:0}
     sim={paths,bands,dates,days,evIdx,N};
     $("daysLbl").textContent=days;
     evaluate();
+    setScrub(Math.min(scrubT,days));
   }
   function evaluate(){
     if(!sim) return;
@@ -500,7 +513,7 @@ tr:last-child td{border-bottom:0}
     let lo=Math.min(...bands[0],...gp,...g5,...hp,S||Infinity,E), hi=Math.max(...bands[4],...gp,...g5,...hp,T||-Infinity,E);
     const span=hi-lo; lo-=span*0.04; hi+=span*0.04;
     const X=t=>padL+(W-padL-padR)*(t+Hn)/(days+Hn), Y=v=>padT+(H-padT-padB)*(1-(v-lo)/(hi-lo));
-    if(live) geom={padL,padR,W,days,Hn};
+    if(live) geom={padL,padR,W,days,Hn,X,Y,gp,hp,bands,padT,padB,H};
     ctx.font=(fs||11)+"px "+css("--display"); ctx.lineWidth=1;
     const raw=(hi-lo)/4, mag=Math.pow(10,Math.floor(Math.log10(raw))), step=[1,2,5,10].map(m=>m*mag).find(s=>s>=raw)||mag*10;
     ctx.strokeStyle=css("--line"); ctx.fillStyle=css("--muted");
@@ -523,22 +536,45 @@ tr:last-child td{border-bottom:0}
     line(gp,css("--guess"),2.5);
     ctx.fillStyle=css("--guess"); ctx.beginPath(); ctx.arc(X(days),Y(gp[days]),4,0,7); ctx.fill();
     ctx.fillStyle=css("--ink"); ctx.beginPath(); ctx.arc(X(0),Y(mkt()*f),4,0,7); ctx.fill();
+    if(live&&scrubT!==null){
+      const t=Math.max(-Hn,Math.min(days,scrubT)), x=X(t);
+      ctx.save(); ctx.strokeStyle=css("--ink"); ctx.globalAlpha=.55; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(x,padT); ctx.lineTo(x,H-padB); ctx.stroke(); ctx.restore();
+      const dot=(v,c)=>{ ctx.fillStyle=css("--panel"); ctx.beginPath(); ctx.arc(x,Y(v),5.5,0,7); ctx.fill(); ctx.fillStyle=c; ctx.beginPath(); ctx.arc(x,Y(v),3.8,0,7); ctx.fill(); };
+      if(t<0) dot(hp[t+Hn],css("--ink"));
+      else { dot(bands[2][t],css("--accent")); if(g5.length) dot(g5[t],css("--gta5")); dot(gp[t],css("--guess")); }
+      ctx.fillStyle=css("--ink"); ctx.beginPath(); ctx.arc(x,H-padB,6,0,7); ctx.fill();
+    }
   }
-  const tip=$("tip");
-  function showTip(clientX){
-    if(!sim||!geom) return;
+  // ---------- date scrubber ----------
+  let scrubT=0, dragging=false;
+  function tFromX(clientX){
     const r=canvas.getBoundingClientRect(), x=clientX-r.left;
-    const t=Math.round((x-geom.padL)/(geom.W-geom.padL-geom.padR)*(geom.days+geom.Hn))-geom.Hn;
-    if(t<-geom.Hn||t>geom.days){ tip.style.display="none"; return; }
-    const m=v=>sym()+(v*fx()).toLocaleString("en-US",{maximumFractionDigits:0}), b=sim.bands;
-    if(t<0){ const h=cur.hist[t+geom.Hn]; tip.textContent=`${shortDate(h[0])} · actual close ${sym()}${(h[1]*fx()).toFixed(2)}`; }
-    else tip.textContent=`${t===0?"Latest "+sym()+(mkt()*fx()).toFixed(2)+" · ":""}${shortDate(sim.dates[t])} · Claude ${m(guessAt(sim.dates[t]))}${(cur.gta5&&sim.evIdx>0)?" · GTA V repeat "+m(gta5At(t,sim.evIdx,mkt())):""} · most likely ${m(b[1][t])}–${m(b[3][t])}`;
-    tip.style.display="block"; const tw=tip.offsetWidth; tip.style.left=Math.max(0,Math.min(x+10,r.width-tw))+"px"; tip.style.top="4px";
+    return Math.round((x-geom.padL)/(geom.W-geom.padL-geom.padR)*(geom.days+geom.Hn))-geom.Hn;
   }
-  canvas.addEventListener("mousemove",e=>showTip(e.clientX));
-  canvas.addEventListener("touchstart",e=>showTip(e.touches[0].clientX),{passive:true});
-  canvas.addEventListener("touchmove",e=>showTip(e.touches[0].clientX),{passive:true});
-  canvas.addEventListener("mouseleave",()=>tip.style.display="none");
+  function setScrub(t){
+    if(!sim||!cur) return;
+    const Hn=cur.hist.length; t=Math.max(-Hn,Math.min(sim.days,t)); scrubT=t;
+    const sl=$("scrub"); sl.min=-Hn; sl.max=sim.days; sl.value=t;
+    const f=fx(), m=v=>fmt$(v,0), sh=shares(), out=$("readout"); out.textContent="";
+    const cell=(label,val,cls)=>{ const d=document.createElement("div"); const sp=document.createElement("span"); sp.textContent=label; const bb=document.createElement("b"); bb.textContent=val; if(cls) bb.className=cls; d.append(sp,bb); out.append(d); };
+    const plOf=p=>{ const v=sh*p-st.invested; return [fmtSigned$(v), v>=0?"pos":"neg"]; };
+    if(t<0){
+      const h=cur.hist[t+Hn]; $("scrubDate").textContent=shortDate(h[0]);
+      cell("Actual close",fmt$(h[1])); const [a,c]=plOf(h[1]); cell("Your profit at this price",a,c);
+    } else {
+      const d=sim.dates[t], b=sim.bands, g=guessAt(d);
+      $("scrubDate").textContent=(t===0?"Latest · ":"")+shortDate(d)+(t===sim.evIdx?" · "+cur.event.label.split(" (")[0]:"");
+      if(t===0) cell("Price",fmt$(mkt()));
+      cell("Claude's guess",fmt$(g)); const [a,c]=plOf(g); cell("Your profit then",a,c);
+      cell("Most likely range",m(b[1][t])+"–"+m(b[3][t]));
+      if(cur.gta5&&sim.evIdx>0) cell("GTA V repeat",fmt$(gta5At(t,sim.evIdx,mkt())));
+    }
+    draw();
+  }
+  canvas.addEventListener("pointerdown",e=>{ if(!geom) return; dragging=true; try{ canvas.setPointerCapture(e.pointerId); }catch(_){} setScrub(tFromX(e.clientX)); });
+  canvas.addEventListener("pointermove",e=>{ if(!geom) return; if(dragging||e.pointerType==="mouse") setScrub(tFromX(e.clientX)); });
+  ["pointerup","pointercancel"].forEach(ev=>canvas.addEventListener(ev,()=>{ dragging=false; }));
+  $("scrub").addEventListener("input",e=>setScrub(+e.target.value));
 
   // ---------- currency ----------
   function setCur(c){
@@ -546,7 +582,7 @@ tr:last-child td{border-bottom:0}
     $$(".curCAD").forEach(b=>{ b.classList.toggle("on",c==="CAD"); b.setAttribute("aria-pressed",c==="CAD"); });
     $$(".curUSD").forEach(b=>{ b.classList.toggle("on",c==="USD"); b.setAttribute("aria-pressed",c==="USD"); });
     $$(".curLbl").forEach(e=>e.textContent=c); $("editHint").textContent="amounts in "+c;
-    if(cur){ fillInputs(); position(); evaluate(); $("dFacts").textContent="Price "+fmt$(cur.price)+" ("+cur.priceNote+") · analyst average target "+fmt$(cur.target)+" · next event: "+cur.event.label+"."; }
+    if(cur){ fillInputs(); position(); evaluate(); setScrub(scrubT); $("dFacts").textContent="Price "+fmt$(cur.price)+" ("+cur.priceNote+") · analyst average target "+fmt$(cur.target)+" · next event: "+cur.event.label+"."; }
     else renderList();
   }
   $$(".curCAD").forEach(b=>b.addEventListener("click",()=>setCur("CAD")));
@@ -558,7 +594,7 @@ tr:last-child td{border-bottom:0}
     $(k).addEventListener("change",()=>{ readInput(k); fillInputs(); runSim(); });
   });
   ["target","stop"].forEach(k=>{ $(k).addEventListener("input",()=>{ readInput(k); evaluate(); }); $(k).addEventListener("change",()=>fillInputs()); });
-  $("rate").addEventListener("input",()=>{ fillInputs(); position(); evaluate(); });
+  $("rate").addEventListener("input",()=>{ fillInputs(); position(); evaluate(); setScrub(scrubT); });
   function labels(){ $("daysV").textContent=$("days").value; $("volV").textContent=$("vol").value+"%"; }
   ["days","vol"].forEach(id=>{ $(id).addEventListener("input",labels); $(id).addEventListener("change",runSim); });
   ["pHit","mHit","pOk","mOk","pBad","mBad"].forEach(id=>$(id).addEventListener("change",runSim));
