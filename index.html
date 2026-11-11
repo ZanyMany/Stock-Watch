@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock Watch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* layout: ranked watchlist → tap a stock → reasons + planner (value card, chart, sell plan, folded details) */
+  --bg:#f3f4f6; --panel:#ffffff; --ink:#14181f; --muted:#5d6675; --line:#e2e5ea;
+  --accent:#2f5bd3; --guess:#d2691e; --gta5:#8a4fd1; --good:#178a4c; --bad:#c23b32; --warn:#b7791f;
+  --band1:rgba(47,91,211,.10); --band2:rgba(47,91,211,.20);
+  --display:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --body:"IBM Plex Sans", system-ui, -apple-system, Segoe UI, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1218; --panel:#171b23; --ink:#e7eaf0; --muted:#97a0ae; --line:#2a303b;
+    --accent:#7d9cff; --guess:#ff9f4a; --gta5:#c49bff; --good:#4cc78a; --bad:#ff7a6e; --warn:#e8b45a;
+    --band1:rgba(125,156,255,.12); --band2:rgba(125,156,255,.24);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1218; --panel:#171b23; --ink:#e7eaf0; --muted:#97a0ae; --line:#2a303b;
+  --accent:#7d9cff; --guess:#ff9f4a; --gta5:#c49bff; --good:#4cc78a; --bad:#ff7a6e; --warn:#e8b45a;
+  --band1:rgba(125,156,255,.12); --band2:rgba(125,156,255,.24);
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:760px;margin:0 auto;padding:16px 16px 40px;display:grid;gap:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+h1{font-family:var(--display);font-size:20px;margin:0}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 10px;font-weight:600}
+.num{font-family:var(--display);font-variant-numeric:tabular-nums}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.note{font-size:12px;color:var(--muted);margin:8px 0 0}
+[hidden]{display:none!important}
+
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.controls{display:flex;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:transparent;color:var(--muted);padding:6px 12px;font-weight:600}
+.seg button.on{background:var(--ink);color:var(--panel)}
+button{font:inherit;font-size:14px;font-weight:600;padding:7px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+button.ghost{background:transparent;color:var(--accent)}
+button.plain{background:transparent;border-color:transparent;color:var(--accent);padding:4px 0}
+button:disabled{opacity:.6;cursor:progress}
+input:focus-visible,button:focus-visible,summary:focus-visible,.row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* watchlist */
+.list{display:grid;gap:8px}
+.row{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer;text-align:left;color:var(--ink);font-weight:400;width:100%}
+.row:hover{border-color:var(--accent)}
+.rank{font-family:var(--display);font-weight:600;font-size:18px;color:var(--muted)}
+.row .t{font-family:var(--display);font-weight:600;font-size:16px}
+.row .n{color:var(--muted);font-size:13px}
+.row .meta{font-size:12px;color:var(--muted);margin-top:4px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.row .right{text-align:right}
+.row .px{font-family:var(--display);font-size:15px}
+.score{display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-top:4px;font-size:12px;color:var(--muted)}
+.bar{width:54px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.chip{display:inline-block;font-size:11px;font-weight:600;padding:1px 7px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.chip.low{color:var(--good)} .chip.med{color:var(--warn)} .chip.high{color:var(--bad)} .chip.done{color:var(--muted)}
+
+/* detail */
+.back{display:flex;align-items:center;gap:8px}
+.why{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.why ul{margin:0;padding-left:18px}
+.why li{margin:4px 0}
+.why h3{font-size:13px;margin:0 0 4px}
+.big{font-family:var(--display);font-size:34px;line-height:1.1;margin:10px 0 2px;font-variant-numeric:tabular-nums}
+.sub{font-family:var(--display);font-size:15px;font-variant-numeric:tabular-nums}
+.meta2{font-size:13px;color:var(--muted);margin-top:4px}
+#liveStatus{font-size:12px;color:var(--muted);margin:10px 0 0}
+#liveStatus.warn{color:var(--warn)}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:10px}
+label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+input[type=number]{font:inherit;font-family:var(--display);font-size:15px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%}
+input[type=range]{width:100%;accent-color:var(--accent)}
+details{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+details.card{border:1px solid var(--line);border-radius:12px;background:var(--panel);margin:0;padding:0}
+details.card > summary{padding:14px 16px}
+details.card > .body{padding:0 16px 16px}
+summary{cursor:pointer;font-size:14px;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:8px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--muted);font-family:var(--display)}
+details[open] > summary::after{content:"–"}
+summary small{font-weight:400;color:var(--muted)}
+canvas{width:100%;height:280px;display:block}
+.chartbox{position:relative}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:12px;font-family:var(--display);display:none;max-width:100%;white-space:normal}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:7px 4px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600}
+td.n,th.n{text-align:right;font-family:var(--display);font-variant-numeric:tabular-nums;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+.verdict{font-size:14px;margin:10px 0 0}
+.scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== Watchlist ===== -->
+  <section id="home">
+    <div class="panel" style="margin-bottom:12px">
+      <div class="top">
+        <h1>Stock Watch</h1>
+        <div class="controls">
+          <div class="seg" role="group" aria-label="Currency"><button type="button" class="curCAD on" aria-pressed="true">CAD</button><button type="button" class="curUSD" aria-pressed="false">USD</button></div>
+          <button type="button" class="updBtn">Update</button>
+        </div>
+      </div>
+      <p class="note" id="homeNote">Ranked best to worst for a short-term buy with a catalyst in the next 6 weeks. Prices as of Nov 11, 2026. Tap a stock for reasons and projections.</p>
+      <p class="note updMsg" hidden></p>
+    </div>
+    <div class="list" id="list"></div>
+    <p class="note">How it's ranked: a near-term event that can move the price, analyst upside, business momentum, and how wild the swings are. Opinion, not financial advice.</p>
+  </section>
+
+  <!-- ===== Detail ===== -->
+  <section id="detail" hidden style="display:grid;gap:12px">
+    <div class="back"><button type="button" class="plain" id="backBtn">← All stocks</button></div>
+
+    <section class="panel" id="whyPanel">
+      <div class="top">
+        <div><h1 id="dTitle">–</h1><div class="note" id="dName" style="margin:2px 0 0"></div></div>
+        <div style="text-align:right"><span class="chip" id="dRisk"></span><div class="note" id="dRank" style="margin:4px 0 0"></div></div>
+      </div>
+      <p id="dSummary" style="margin:12px 0"></p>
+      <div class="why">
+        <div><h3 class="pos">Why it could work</h3><ul id="dFor"></ul></div>
+        <div><h3 class="neg">What could go wrong</h3><ul id="dAgainst"></ul></div>
+      </div>
+      <p class="note" id="dFacts"></p>
+    </section>
+
+    <section class="panel" id="position">
+      <div class="top">
+        <h2 style="margin:0" id="posTitle">If you invest</h2>
+        <div class="controls">
+          <div class="seg" role="group" aria-label="Currency"><button type="button" class="curCAD on" aria-pressed="true">CAD</button><button type="button" class="curUSD" aria-pressed="false">USD</button></div>
+          <button type="button" class="updBtn">Update</button>
+        </div>
+      </div>
+      <div class="big" id="tValue">–</div>
+      <div class="sub"><span id="tPL">–</span> <span id="tPct">–</span></div>
+      <div class="meta2">Share price <span class="num" id="tPrice">–</span> · bought at <span class="num" id="tEntry">–</span> · <span class="num" id="tShares">–</span> shares</div>
+      <p id="liveStatus"></p>
+      <p class="note updMsg" hidden></p>
+      <details id="edit">
+        <summary>Edit position <small id="editHint">amounts in CAD</small></summary>
+        <div class="fields">
+          <label for="price"><span>Current share price (<span class="curLbl">CAD</span>)</span><input id="price" type="number" step="0.01"></label>
+          <label for="entry"><span>Buy price per share (<span class="curLbl">CAD</span>)</span><input id="entry" type="number" step="0.01"></label>
+          <label for="invested"><span>Amount invested (<span class="curLbl">CAD</span>)</span><input id="invested" type="number" step="0.01"></label>
+          <label for="rate"><span>Exchange rate: 1 USD = ? CAD</span><input id="rate" type="number" step="0.0001" value="1.4202"></label>
+        </div>
+        <p class="note" id="editNote">Type in whichever currency is selected; switching converts at the exchange rate above.</p>
+      </details>
+    </section>
+
+    <section class="panel" id="simulator">
+      <h2>Where it could go</h2>
+      <div class="chartbox">
+        <canvas id="chart" aria-label="Actual and simulated price"></canvas>
+        <div class="tip" id="tip"></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--ink)"></i>Actual price</span>
+        <span><i style="background:var(--guess)"></i>Claude's guess</span>
+        <span id="lgGta5"><i style="background:var(--gta5)"></i>GTA V repeat</span>
+        <span><i style="background:var(--accent)"></i>Middle of 4,000 simulations</span>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="ghost" id="savePng" hidden>Download as PNG</button>
+        <span class="note" id="saveMsg" style="margin:0"></span>
+      </div>
+      <p class="note" id="chartNote"></p>
+    </section>
+
+    <section class="panel" id="rules">
+      <h2>Sell plan</h2>
+      <div class="fields" style="margin-top:0">
+        <label for="target"><span>Sell if price reaches (<span class="curLbl">CAD</span>)</span><input id="target" type="number" step="0.5"></label>
+        <label for="stop"><span>Sell if price falls to (<span class="curLbl">CAD</span>)</span><input id="stop" type="number" step="0.5"></label>
+      </div>
+      <table style="margin-top:12px">
+        <tr><th>Outcome in the next <span id="daysLbl">30</span> trading days</th><th class="n">Chance</th><th class="n">Avg profit</th></tr>
+        <tr><td>Hits your sell price</td><td class="n" id="pT">–</td><td class="n" id="gT">–</td></tr>
+        <tr><td>Hits your stop-loss</td><td class="n" id="pS">–</td><td class="n" id="gS">–</td></tr>
+        <tr><td>Neither</td><td class="n" id="pN">–</td><td class="n" id="gN">–</td></tr>
+        <tr><td><strong>This plan, on average</strong></td><td></td><td class="n"><strong id="gE">–</strong></td></tr>
+        <tr><td id="nowLbl">Selling today</td><td></td><td class="n" id="gNow">–</td></tr>
+      </table>
+      <p class="verdict" id="verdict"></p>
+    </section>
+
+    <details class="card" id="guess">
+      <summary>Claude's guess, step by step <small>opinion, not a forecast</small></summary>
+      <div class="body">
+        <table>
+          <tr><th>Date</th><th>What I expect</th><th class="n">Price</th><th class="n">Profit</th></tr>
+          <tbody id="guessRows"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <details class="card" id="ttwoCompare" hidden>
+      <summary>GTA V vs GTA VI <small>what happened last time</small></summary>
+      <div class="body scroll">
+        <table>
+          <tr><th></th><th>GTA V, Sep 2013</th><th>GTA VI, Nov 2026</th></tr>
+          <tr><td>Pre-orders</td><td>Record then; about 3M in the UK alone</td><td>About 9.7M, about US$942M (estimate)</td></tr>
+          <tr><td>Day one</td><td>US$800M, about 11M copies</td><td>Pre-orders alone already beat this</td></tr>
+          <tr><td>Stock, launch day</td><td>-2.0%</td><td>?</td></tr>
+          <tr><td>2 weeks later</td><td>+4.7%</td><td>?</td></tr>
+          <tr><td>1 month later</td><td>-1.2%</td><td>?</td></tr>
+          <tr><td>1 year later</td><td>+35%</td><td>?</td></tr>
+        </table>
+      </div>
+    </details>
+
+    <details class="card" id="assumptions">
+      <summary>Simulation settings <small>change the odds</small></summary>
+      <div class="body">
+        <div class="fields" style="margin-top:0">
+          <label for="days"><span>Look ahead: <b id="daysV"></b> trading days</span><input id="days" type="range" min="10" max="90" value="30"></label>
+          <label for="vol"><span>Normal swings (yearly volatility): <b id="volV"></b></span><input id="vol" type="range" min="15" max="120" value="40"></label>
+        </div>
+        <p class="note" id="volNote"></p>
+        <p class="note" style="margin-top:12px" id="evLbl">Event reaction: chance and one-day move for each scenario.</p>
+        <div class="fields">
+          <label for="pHit"><span>Goes well, chance %</span><input id="pHit" type="number"></label>
+          <label for="mHit"><span>Goes well, move %</span><input id="mHit" type="number"></label>
+          <label for="pOk"><span>As expected, chance %</span><input id="pOk" type="number"></label>
+          <label for="mOk"><span>As expected, move %</span><input id="mOk" type="number"></label>
+          <label for="pBad"><span>Disappoints, chance %</span><input id="pBad" type="number"></label>
+          <label for="mBad"><span>Disappoints, move %</span><input id="mBad" type="number"></label>
+        </div>
+        <div style="margin-top:12px"><button type="button" class="ghost" id="run">Run simulation again</button></div>
+        <p class="note">4,000 random price paths with normal swings plus one event-day jump. Odds under your assumptions, not predictions, and not financial advice.</p>
+      </div>
+    </details>
+  </section>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+  // =====================================================================
+  // DATA (USD). Researched Nov 11, 2026. Say "update" to Claude to refresh.
+  // =====================================================================
+  const PROCEEDS = 1099.10; // TTWO sale proceeds (estimated at US$230.68)
+  const STOCKS = [
+    { t:"AMZN", name:"Amazon", score:82, risk:"Medium",
+      price:267.90, priceNote:"about midday Nov 11", target:326.99,
+      event:{d:"2026-11-27", label:"Black Friday / holiday shopping", s:[[40,3],[40,0],[20,-4]]},
+      summary:"The steadiest pick here: a business that is speeding up, broad analyst support, and the holiday season ahead, without the wild swings of the chip stocks.",
+      pros:["AWS (its cloud business) grew 39% last quarter, the fastest in about five years.","Record 13.9% operating margin.","61 analysts: Strong Buy, average target about US$327 (+22%).","Holiday shopping season and AWS's big December conference are near-term news."],
+      cons:["Spending about US$200B+ on data centres pushed free cash flow negative.","Fell about 4% in one day last week; the market is nervous about AI spending.","Less upside than NVDA or MU if things go really well."],
+      hist:[["2026-10-28",254.60],["2026-10-29",243.79],["2026-10-30",240.35],["2026-11-02",245.63],["2026-11-03",250.69],["2026-11-04",266.03],["2026-11-05",260.21],["2026-11-06",259.30],["2026-11-09",266.93],["2026-11-10",270.87]],
+      guess:[{d:"2026-11-11",p:267.90,why:"Now."},{d:"2026-11-26",p:274,why:"Steady climb into Black Friday."},{d:"2026-12-04",p:282,why:"AWS conference news and holiday sales data."},{d:"2026-12-24",p:285,why:"Holds gains into year-end."},{d:"2027-03-01",p:300,why:"Moves toward analyst targets if AWS keeps accelerating."}] },
+    { t:"NVDA", name:"Nvidia", score:74, risk:"High",
+      price:176.22, priceNote:"about 1 p.m. Nov 11", target:325.78,
+      event:{d:"2026-11-18", label:"Earnings (Nov 17, after close)", s:[[40,8],[35,-3],[25,-12]]},
+      summary:"The biggest catalyst on the list: earnings in six days. Analysts see huge upside, but there's real uncertainty around the CEO.",
+      pros:["Earnings Nov 17. Last quarter: about US$96B revenue, data centre +138%.","Down about 25% in a month, so much less hype is priced in.","Average analyst target about US$326, roughly +85%.","Earnings estimates are still rising while the price fell."],
+      cons:["Reports linking the CEO to a suspected spy; Baird cut its target to US$200 from US$500.","Has beaten earnings four times in a row and still fallen afterward.","Very volatile (beta 2.25): ±10% days happen."],
+      hist:[["2026-10-22",212.21],["2026-10-23",210.96],["2026-10-26",216.00],["2026-10-27",217.94],["2026-10-28",215.38],["2026-10-29",213.66],["2026-10-30",204.64],["2026-11-02",202.06],["2026-11-03",206.69],["2026-11-04",200.13],["2026-11-05",181.60],["2026-11-06",186.64],["2026-11-09",178.67],["2026-11-10",168.89]],
+      guess:[{d:"2026-11-11",p:176.22,why:"Now, bouncing 4% off a seven-month low."},{d:"2026-11-17",p:182,why:"Pre-earnings recovery."},{d:"2026-11-18",p:176,why:"Solid results, but a muted reaction, as after its last four reports."},{d:"2026-12-04",p:186,why:"Slow recovery if the CEO news calms down."},{d:"2026-12-24",p:192,why:"Year-end."},{d:"2027-03-01",p:210,why:"Gradual rebound; still well below analyst targets."}] },
+    { t:"COST", name:"Costco", score:63, risk:"Low",
+      price:1066.14, priceNote:"Nov 10 close", target:1059.25,
+      event:{d:"2026-12-11", label:"Earnings (Dec 10, after close)", s:[[40,3],[40,-2],[20,-6]]},
+      summary:"The safe choice: a steady business with a US$30-per-share special dividend coming. Lower risk, but little room for a big gain.",
+      pros:["US$30 special dividend for shareholders of record Nov 24, paid Dec 4.","New US$4B buyback approved.","Swings far less than the market (beta 0.85); holds up in sell-offs.","Earnings Dec 10; it beat estimates last quarter."],
+      cons:["Already near its all-time high of US$1,096.50.","Average analyst target (about US$1,059) is slightly below today's price.","Expensive: about 51× earnings.","A share price usually drops by about the dividend amount once the stock goes ex-dividend."],
+      hist:[["2026-10-29",996.08],["2026-10-30",1012.28],["2026-11-02",1040.55],["2026-11-03",1019.26],["2026-11-04",1046.47],["2026-11-05",1065.59],["2026-11-06",1053.56],["2026-11-09",1066.18],["2026-11-10",1066.14]],
+      guess:[{d:"2026-11-11",p:1066.14,why:"Nov 10 close."},{d:"2026-11-24",p:1075,why:"Buyers come in for the special dividend."},{d:"2026-12-10",p:1080,why:"Into earnings."},{d:"2026-12-11",p:1068,why:"Small dip after earnings, typical for an expensive stock."},{d:"2026-12-24",p:1075,why:"Holiday sales keep it steady."},{d:"2027-03-01",p:1095,why:"Slow grind near all-time highs."}] },
+    { t:"MU", name:"Micron", score:58, risk:"Very high",
+      price:810.76, priceNote:"about 10:45 a.m. Nov 11", target:1561.91,
+      event:{d:"2026-12-17", label:"Earnings (mid–late December)", s:[[45,10],[30,-4],[25,-15]]},
+      summary:"Huge potential, huge risk. Very cheap on earnings with record results, but it fell 30% in a week before today's 12% jump.",
+      pros:["Eight earnings beats in a row; record US$54B quarter.","Trades at only about 4× next year's expected earnings.","Average analyst target about US$1,562 (+93%); 45 of 49 analysts say Buy.","US$35B buyback; buying about US$1B of Anthropic's IPO."],
+      cons:["Down about 36% since Oct 1; dropped 17% in a single day on Nov 5.","Memory chip prices are cyclical; booms often end suddenly.","Earnings date not confirmed (sources say Dec 16–23)."],
+      hist:[["2026-10-30",884.74],["2026-11-02",833.59],["2026-11-03",855.10],["2026-11-04",795.23],["2026-11-05",656.39],["2026-11-06",690.00],["2026-11-09",733.15],["2026-11-10",725.11]],
+      guess:[{d:"2026-11-11",p:810.76,why:"Now, after a 12% jump."},{d:"2026-11-25",p:785,why:"Some of today's bounce fades."},{d:"2026-12-16",p:830,why:"Run-up into earnings."},{d:"2026-12-17",p:880,why:"Another beat, if the pattern holds."},{d:"2026-12-24",p:870,why:"Holds most of it."},{d:"2027-03-01",p:950,why:"Partial recovery toward earlier highs."}] },
+    { t:"MELI", name:"MercadoLibre", score:50, risk:"High",
+      price:1490.24, priceNote:"Nov 10 close", target:2232.62,
+      event:{d:"2026-11-27", label:"Black Friday in Latin America", s:[[35,4],[40,0],[25,-5]]},
+      summary:"A beaten-down bargain, but the trend is still pointing down. Better to watch than to buy right now.",
+      pros:["Analyst target about US$2,233, roughly +50%.","Valuation has roughly halved since January while sales are expected to grow about 29% next year.","Holiday shopping in Brazil, Mexico and Argentina before Dec 31."],
+      cons:["Fell 12% on Nov 5 after missing earnings estimates.","At a 52-week low and below its 200-day average: the trend is still down.","Latin American currencies and economies add risk."],
+      hist:[["2026-10-28",1673.09],["2026-11-02",1676.79],["2026-11-03",1662.16],["2026-11-04",1739.88],["2026-11-05",1530.28],["2026-11-06",1510.00],["2026-11-09",1532.68],["2026-11-10",1490.24]],
+      guess:[{d:"2026-11-11",p:1490.24,why:"Nov 10 close."},{d:"2026-11-20",p:1470,why:"Still drifting lower."},{d:"2026-11-27",p:1520,why:"Black Friday bounce."},{d:"2026-12-24",p:1560,why:"Holiday sales help."},{d:"2027-03-01",p:1650,why:"Slow recovery."}] },
+    { t:"TTWO", name:"Take-Two Interactive", score:null, risk:"Sold", sold:true,
+      price:230.68, priceNote:"about 10 a.m. Nov 11", target:283.86,
+      event:{d:"2026-11-19", label:"GTA VI launch", s:[[45,10],[35,-3],[20,-15]]},
+      summary:"Your past trade. You bought at US$209.88 and sold on Nov 11, before the GTA VI launch.",
+      pros:["Bought US$1,000 at US$209.88.","Sold Nov 11 (sale price not confirmed; estimated at about US$230.68).","About +US$99 (+9.9%) by that estimate."],
+      cons:["Kept here to watch what happens at the GTA VI launch on Nov 19."],
+      hist:[["2026-10-09",213.44],["2026-10-12",208.82],["2026-10-13",200.32],["2026-10-14",201.23],["2026-10-15",209.38],["2026-10-16",205.28],["2026-10-19",204.92],["2026-10-20",206.70],["2026-10-21",206.16],["2026-10-22",207.81],["2026-10-23",203.69],["2026-10-26",203.35],["2026-10-27",201.28],["2026-10-28",195.29],["2026-10-29",193.39],["2026-10-30",190.17],["2026-11-02",192.10],["2026-11-03",194.99],["2026-11-04",208.90],["2026-11-05",213.36],["2026-11-06",214.87],["2026-11-09",207.40],["2026-11-10",224.64]],
+      guess:[{d:"2026-11-11",p:230.68,why:"Around when you sold."},{d:"2026-11-13",p:233,why:"Holding above US$229."},{d:"2026-11-18",p:236,why:"Run-up into launch."},{d:"2026-11-19",p:229,why:"Launch-day dip (GTA V fell 2.0%)."},{d:"2026-11-24",p:231,why:"Sales records land."},{d:"2026-12-03",p:240,why:"Delayed rally (GTA V: +4.7% after 2 weeks)."},{d:"2026-12-18",p:233,why:"Gives some back."},{d:"2027-03-01",p:245,why:"Slow grind higher."}],
+      gta5:true, entry:209.88, invested:1000, salePrice:230.68 }
+  ];
+
+  // ---------- state ----------
+  let CUR="CAD", cur=null, st=null, sim=null, geom=null, TODAY="2026-11-11", DATA_NOTE="";
+  const mkt=()=>cur.sold?cur.price:st.price;
+  const pos = {}; // per-ticker position state (USD)
+  STOCKS.forEach(s=>{
+    pos[s.t] = s.sold
+      ? {price:s.salePrice, entry:s.entry, invested:s.invested, target:250, stop:205}
+      : {price:s.price, entry:s.price, invested:PROCEEDS, target:+(s.price*1.12).toFixed(2), stop:+(s.price*0.90).toFixed(2)};
+  });
+
+  const rate=()=>{ const r=parseFloat($("rate").value); return r>0?r:1; };
+  const fx=()=>CUR==="CAD"?rate():1;
+  const sym=()=>CUR==="CAD"?"C$":"US$";
+  const fmt$=(v,dp=2)=>{ v=v*fx(); return (v<0?"-":"")+sym()+Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:dp,maximumFractionDigits:dp}); };
+  const fmtSigned$=v=>(v>=0?"+":"")+fmt$(v);
+  const num=id=>parseFloat($(id).value)||0;
+  const shortDate=iso=>new Date(iso+"T12:00:00Z").toLocaleDateString("en-US",{month:"short",day:"numeric",timeZone:"UTC"});
+  const riskCls=r=>r==="Low"?"low":r==="Medium"?"med":r==="Sold"?"done":"high";
+  const upside=s=>(s.target/s.price-1)*100;
+
+  function realizedVol(h){
+    const c=h.map(x=>x[1]); const r=[]; for(let i=1;i<c.length;i++) r.push(Math.log(c[i]/c[i-1]));
+    if(r.length<3) return 40;
+    const m=r.reduce((a,b)=>a+b,0)/r.length, v=r.reduce((a,b)=>a+(b-m)*(b-m),0)/(r.length-1);
+    return Math.round(Math.max(15,Math.min(120,Math.sqrt(v*252)*100)));
+  }
+
+  // ---------- watchlist ----------
+  function renderList(){
+    const L=$("list"); L.textContent="";
+    const ranked=STOCKS.filter(s=>!s.sold).sort((a,b)=>b.score-a.score);
+    const all=[...ranked, ...STOCKS.filter(s=>s.sold)];
+    all.forEach((s,i)=>{
+      const b=document.createElement("button"); b.type="button"; b.className="row"; b.setAttribute("aria-label",s.name+" details");
+      const rk=document.createElement("div"); rk.className="rank"; rk.textContent=s.sold?"–":String(i+1);
+      const mid=document.createElement("div");
+      const line=document.createElement("div"); const tt=document.createElement("span"); tt.className="t"; tt.textContent=s.t+" ";
+      const nn=document.createElement("span"); nn.className="n"; nn.textContent=s.name; line.append(tt,nn);
+      const meta=document.createElement("div"); meta.className="meta";
+      const chip=document.createElement("span"); chip.className="chip "+riskCls(s.risk); chip.textContent=s.sold?"Sold":s.risk+" risk";
+      const ev=document.createElement("span"); ev.textContent=(s.sold?"Watching: ":"Next: ")+s.event.label.split(" (")[0]+", "+shortDate(s.event.d);
+      meta.append(chip,ev);
+      mid.append(line,meta);
+      const right=document.createElement("div"); right.className="right";
+      const px=document.createElement("div"); px.className="px"; px.textContent=fmt$(s.price);
+      const sc=document.createElement("div"); sc.className="score";
+      if(s.sold){ const p=pos[s.t], pl=p.invested/p.entry*p.price-p.invested; sc.textContent="Result "+fmtSigned$(pl); sc.className="score pos"; }
+      else { const up=upside(s); const lab=document.createElement("span"); lab.textContent="Score "+s.score; const bar=document.createElement("span"); bar.className="bar"; const fill=document.createElement("i"); fill.style.width=s.score+"%"; bar.append(fill); sc.append(lab,bar);
+        const u=document.createElement("div"); u.className="score"; u.textContent="Analysts "+(up>=0?"+":"")+up.toFixed(0)+"%"; right.append(px,sc,u); }
+      if(s.sold) right.append(px,sc);
+      b.append(rk,mid,right);
+      b.addEventListener("click",()=>openStock(s.t));
+      L.append(b);
+    });
+  }
+
+  // ---------- detail ----------
+  function openStock(t){
+    cur=STOCKS.find(s=>s.t===t); st=pos[t];
+    $("home").hidden=true; $("detail").hidden=false;
+    $("dTitle").textContent=cur.t; $("dName").textContent=cur.name;
+    $("dRisk").className="chip "+riskCls(cur.risk); $("dRisk").textContent=cur.sold?"Sold":cur.risk+" risk";
+    const ranked=STOCKS.filter(s=>!s.sold).sort((a,b)=>b.score-a.score);
+    $("dRank").textContent=cur.sold?"Past trade":"#"+(ranked.indexOf(cur)+1)+" of "+ranked.length+" · score "+cur.score;
+    $("dSummary").textContent=cur.summary;
+    const fill=(id,arr)=>{ const u=$(id); u.textContent=""; arr.forEach(x=>{ const li=document.createElement("li"); li.textContent=x; u.append(li); }); };
+    fill("dFor",cur.pros); fill("dAgainst",cur.cons);
+    $("dFacts").textContent="Price "+fmt$(cur.price)+" ("+cur.priceNote+") · analyst average target "+fmt$(cur.target)+" · next event: "+cur.event.label+".";
+    $("posTitle").textContent=cur.sold?"Your trade (sold)":"If you invest";
+    $("nowLbl").textContent=cur.sold?"What you got by selling":"Selling today";
+    $("editNote").textContent=cur.sold?"Edit the price to your actual sale price for the exact result.":"Starts with your TTWO money (about US$1,099) bought at today's price. Type in whichever currency is selected.";
+    $("lgGta5").hidden=!cur.gta5; $("ttwoCompare").hidden=!cur.gta5;
+    $("liveStatus").textContent="Price: "+cur.priceNote+"."+(DATA_NOTE?" Updates automatically after each trading day.":" Tap Update, then send it to Claude to refresh.");
+    $("chartNote").textContent="Left: actual daily closes. Right: where most simulated prices land, using this stock's real recent swings. Dotted line: "+cur.event.label+", "+shortDate(cur.event.d)+".";
+    const v=cur.t==="TTWO"?48:realizedVol(cur.hist); $("vol").value=v;
+    $("volNote").textContent="Default swing size ("+v+"%) comes from "+cur.t+"'s actual daily moves recently.";
+    $("evLbl").textContent="Event: "+cur.event.label+" ("+shortDate(cur.event.d)+"). Chance and one-day move for each outcome.";
+    const ids=[["pHit","mHit"],["pOk","mOk"],["pBad","mBad"]]; ids.forEach((p,i)=>{ $(p[0]).value=cur.event.s[i][0]; $(p[1]).value=cur.event.s[i][1]; });
+    labels(); fillInputs(); position(); runSim();
+    try{ history.replaceState(null,"","#"+cur.t.toLowerCase()); }catch(e){}
+    window.scrollTo(0,0);
+  }
+  function goHome(){ $("detail").hidden=true; $("home").hidden=false; cur=null; renderList(); try{ history.replaceState(null,"","#"); }catch(e){} }
+  $("backBtn").addEventListener("click",goHome);
+
+  const MONEY=["price","entry","invested","target","stop"];
+  function fillInputs(except){ if(!st) return; MONEY.forEach(k=>{ if(k!==except) $(k).value=(st[k]*fx()).toFixed(2); }); }
+  function readInput(k){ const v=parseFloat($(k).value); if(isFinite(v)&&v>0) st[k]=v/fx(); }
+  const shares=()=>st.entry>0?st.invested/st.entry:0;
+
+  function guessPts(){ return [{d:TODAY,p:mkt(),why:"Now."}].concat(cur.guess.filter(g=>g.d>TODAY)); }
+  function guessAt(iso){
+    const G=guessPts(), t=Date.parse(iso);
+    if(t<=Date.parse(G[0].d)) return G[0].p;
+    for(let i=1;i<G.length;i++){ const a=Date.parse(G[i-1].d), b=Date.parse(G[i].d); if(t<=b) return G[i-1].p+(G[i].p-G[i-1].p)*(t-a)/(b-a); }
+    return G[G.length-1].p;
+  }
+  const GTA5=[[-6,0],[0,0],[1,-0.020],[4,-0.021],[10,0.047],[23,-0.012]];
+  function gta5At(t,launchIdx,base){
+    const k=t-(launchIdx-1);
+    if(k<=GTA5[0][0]) return base;
+    for(let i=1;i<GTA5.length;i++){ const [a,va]=GTA5[i-1],[b,vb]=GTA5[i]; if(k<=b) return base*(1+va+(vb-va)*(k-a)/(b-a)); }
+    return base*(1+GTA5[GTA5.length-1][1]);
+  }
+  function guessTable(){
+    const tb=$("guessRows"); tb.textContent=""; const sh=shares();
+    guessPts().forEach(g=>{
+      const tr=document.createElement("tr"), pl=sh*g.p-st.invested;
+      [[shortDate(g.d),""],[g.why,""],[fmt$(g.p),"n"],[fmtSigned$(pl),"n "+(pl>=0?"pos":"neg")]].forEach(([x,c])=>{ const td=document.createElement("td"); td.textContent=x; if(c) td.className=c; tr.append(td); });
+      tb.append(tr);
+    });
+  }
+  function position(){
+    if(!st) return;
+    const sh=shares(), val=sh*st.price, pl=val-st.invested, pct=st.invested>0?pl/st.invested*100:0;
+    $("tValue").textContent=fmt$(val);
+    $("tPL").textContent=fmtSigned$(pl); $("tPL").className=pl>=0?"pos":"neg";
+    $("tPct").textContent="("+(pct>=0?"+":"")+pct.toFixed(2)+"%)"; $("tPct").className=pl>=0?"pos":"neg";
+    $("tPrice").textContent=fmt$(st.price); $("tEntry").textContent=fmt$(st.entry); $("tShares").textContent=sh.toFixed(4);
+    guessTable();
+  }
+
+  // ---------- simulation ----------
+  function tradingDays(n){
+    const out=[], d=new Date(TODAY+"T00:00:00Z");
+    while(out.length<n+1){ const wd=d.getUTCDay(), iso=d.toISOString().slice(0,10); if(wd&&wd!==6&&iso!=="2026-11-26"&&iso!=="2026-12-25") out.push(iso); d.setUTCDate(d.getUTCDate()+1); }
+    return out;
+  }
+  function randn(){ let u=0,v=0; while(!u)u=Math.random(); while(!v)v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+  function runSim(){
+    if(!cur) return;
+    const p=mkt(), N=4000, days=+$("days").value, vol=+$("vol").value/100;
+    const dates=tradingDays(days), evIdx=dates.indexOf(cur.event.d);
+    const sd=vol/Math.sqrt(252), drift=-0.5*sd*sd;
+    let pH=Math.max(0,num("pHit")), pO=Math.max(0,num("pOk")), pB=Math.max(0,num("pBad")); const tot=pH+pO+pB||1; pH/=tot; pO/=tot;
+    const J=[num("mHit")/100,num("mOk")/100,num("mBad")/100], paths=new Array(N);
+    for(let i=0;i<N;i++){ const path=new Float64Array(days+1); path[0]=p; let x=p;
+      for(let t=1;t<=days;t++){ x*=Math.exp(drift+sd*randn()); if(t===evIdx){ const r=Math.random(); x*=(1+(r<pH?J[0]:(r<pH+pO?J[1]:J[2]))); } path[t]=x; }
+      paths[i]=path; }
+    const q=[0.1,0.25,0.5,0.75,0.9], bands=q.map(()=>new Float64Array(days+1)), col=new Float64Array(N);
+    for(let t=0;t<=days;t++){ for(let i=0;i<N;i++) col[i]=paths[i][t]; col.sort(); q.forEach((qq,k)=>{ bands[k][t]=col[Math.floor(qq*(N-1))]; }); }
+    sim={paths,bands,dates,days,evIdx,N};
+    $("daysLbl").textContent=days;
+    evaluate();
+  }
+  function evaluate(){
+    if(!sim) return;
+    const sh=shares(), inv=st.invested, T=st.target, S=st.stop;
+    let nT=0,nS=0,nN=0,sT=0,sS=0,sN=0;
+    for(const path of sim.paths){ let done=false;
+      for(let t=1;t<=sim.days;t++){ const x=path[t]; if(T>0&&x>=T){nT++;sT+=sh*x-inv;done=true;break;} if(S>0&&x<=S){nS++;sS+=sh*x-inv;done=true;break;} }
+      if(!done){ nN++; sN+=sh*path[sim.days]-inv; } }
+    const N=sim.N, pc=n=>(n/N*100).toFixed(0)+"%", set=(id,v)=>{ $(id).textContent=fmtSigned$(v); $(id).className="n "+(v>=0?"pos":"neg"); };
+    $("pT").textContent=pc(nT); $("pS").textContent=pc(nS); $("pN").textContent=pc(nN);
+    set("gT",nT?sT/nT:sh*T-inv); set("gS",nS?sS/nS:sh*S-inv);
+    if(nN) set("gN",sN/nN); else { $("gN").textContent="–"; $("gN").className="n"; }
+    const gE=(sT+sS+sN)/N, gNow=sh*st.price-inv;
+    $("gE").textContent=fmtSigned$(gE); $("gE").className=gE>=0?"pos":"neg"; set("gNow",gNow);
+    const diff=gE-gNow;
+    $("verdict").textContent = cur.sold
+      ? (diff>5 ? `If you had held with this plan, the average outcome would be ${fmt$(diff)} better than selling, with a ${pc(nS)} chance of hitting the stop-loss.` : diff<-5 ? `Selling looks smart: holding with this plan averages ${fmt$(-diff)} worse.` : `Selling and holding come out about the same on average.`)
+      : `This plan averages ${fmtSigned$(gE)} on your ${fmt$(inv)}, with a ${pc(nT)} chance of reaching your sell price and a ${pc(nS)} chance of the stop-loss.`;
+    draw();
+  }
+
+  // ---------- chart ----------
+  const canvas=$("chart"), ctx=canvas.getContext("2d");
+  const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  function draw(){
+    if(!sim||$("detail").hidden) return;
+    const dpr=window.devicePixelRatio||1, W=canvas.clientWidth, H=canvas.clientHeight;
+    canvas.width=W*dpr; canvas.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+    paint(ctx,W,H,true);
+  }
+  function paint(ctx,W,H,live,fs){
+    const padL=fs?80:54,padR=fs?16:10,padT=12,padB=fs?40:26, f=fx(), SY=sym();
+    const {days,dates,evIdx}=sim, HIST=cur.hist, Hn=HIST.length;
+    const bands=sim.bands.map(b=>Array.from(b,v=>v*f));
+    const gp=dates.slice(0,days+1).map(d=>guessAt(d)*f);
+    const g5=(cur.gta5&&evIdx>0)?dates.slice(0,days+1).map((_,t)=>gta5At(t,evIdx,mkt())*f):[];
+    const T=st.target*f, S=st.stop*f, E=st.entry*f, hp=HIST.map(h=>h[1]*f);
+    let lo=Math.min(...bands[0],...gp,...g5,...hp,S||Infinity,E), hi=Math.max(...bands[4],...gp,...g5,...hp,T||-Infinity,E);
+    const span=hi-lo; lo-=span*0.04; hi+=span*0.04;
+    const X=t=>padL+(W-padL-padR)*(t+Hn)/(days+Hn), Y=v=>padT+(H-padT-padB)*(1-(v-lo)/(hi-lo));
+    if(live) geom={padL,padR,W,days,Hn};
+    ctx.font=(fs||11)+"px "+css("--display"); ctx.lineWidth=1;
+    const raw=(hi-lo)/4, mag=Math.pow(10,Math.floor(Math.log10(raw))), step=[1,2,5,10].map(m=>m*mag).find(s=>s>=raw)||mag*10;
+    ctx.strokeStyle=css("--line"); ctx.fillStyle=css("--muted");
+    for(let v=Math.ceil(lo/step)*step; v<=hi; v+=step){ ctx.beginPath(); ctx.moveTo(padL,Y(v)); ctx.lineTo(W-padR,Y(v)); ctx.stroke(); ctx.textAlign="right"; ctx.textBaseline="middle"; ctx.fillText(SY+Math.round(v).toLocaleString("en-US"), padL-6, Y(v)); }
+    ctx.textAlign="center"; ctx.textBaseline="top"; let lastR=-1e9;
+    [-Hn,0,evIdx>0?evIdx:null,days].filter(v=>v!==null).forEach(t=>{
+      const txt=t<0?shortDate(HIST[0][0]):(t===0?"Latest":shortDate(dates[t])), w=ctx.measureText(txt).width, cx=Math.min(Math.max(X(t),padL+w/2),W-padR-w/2);
+      if(cx-w/2<lastR+8) return; ctx.fillText(txt,cx,H-padB+8); lastR=cx+w/2; });
+    if(evIdx>0){ ctx.save(); ctx.setLineDash([3,4]); ctx.strokeStyle=css("--muted"); ctx.beginPath(); ctx.moveTo(X(evIdx),padT); ctx.lineTo(X(evIdx),H-padB); ctx.stroke(); ctx.restore(); }
+    const band=(a,b,c)=>{ ctx.fillStyle=c; ctx.beginPath(); for(let t=0;t<=days;t++) ctx.lineTo(X(t),Y(bands[b][t])); for(let t=days;t>=0;t--) ctx.lineTo(X(t),Y(bands[a][t])); ctx.closePath(); ctx.fill(); };
+    band(0,4,css("--band1")); band(1,3,css("--band2"));
+    const hline=(v,c,label,below)=>{ if(!(v>0)) return; ctx.save(); ctx.strokeStyle=c; ctx.setLineDash([6,4]); ctx.beginPath(); ctx.moveTo(padL,Y(v)); ctx.lineTo(W-padR,Y(v)); ctx.stroke(); ctx.restore();
+      const txt=label+" "+SY+Math.round(v).toLocaleString("en-US"); ctx.fillStyle=c; ctx.textBaseline=below?"top":"bottom"; ctx.textAlign=below?"right":"left"; ctx.fillText(txt,below?W-padR-2:padL+4,below?Y(v)+2:Y(v)-2); };
+    hline(T,css("--good"),"Sell"); hline(S,css("--bad"),"Stop",true); hline(E,css("--muted"),"Bought");
+    ctx.save(); ctx.fillStyle=css("--line"); ctx.globalAlpha=.35; ctx.fillRect(padL,padT,X(0)-padL,H-padT-padB); ctx.restore();
+    ctx.save(); ctx.strokeStyle=css("--ink"); ctx.lineWidth=2.2; ctx.lineJoin="round"; ctx.beginPath(); hp.forEach((v,i)=>ctx.lineTo(X(i-Hn),Y(v))); ctx.lineTo(X(0),Y(mkt()*f)); ctx.stroke(); ctx.restore();
+    const line=(arr,c,w,dash)=>{ ctx.save(); ctx.strokeStyle=c; ctx.lineWidth=w; if(dash) ctx.setLineDash(dash); ctx.beginPath(); arr.forEach((v,t)=>ctx.lineTo(X(t),Y(v))); ctx.stroke(); ctx.restore(); };
+    line(Array.from(bands[2]),css("--accent"),1.5);
+    if(g5.length) line(g5,css("--gta5"),2,[2,3]);
+    line(gp,css("--guess"),2.5);
+    ctx.fillStyle=css("--guess"); ctx.beginPath(); ctx.arc(X(days),Y(gp[days]),4,0,7); ctx.fill();
+    ctx.fillStyle=css("--ink"); ctx.beginPath(); ctx.arc(X(0),Y(mkt()*f),4,0,7); ctx.fill();
+  }
+  const tip=$("tip");
+  function showTip(clientX){
+    if(!sim||!geom) return;
+    const r=canvas.getBoundingClientRect(), x=clientX-r.left;
+    const t=Math.round((x-geom.padL)/(geom.W-geom.padL-geom.padR)*(geom.days+geom.Hn))-geom.Hn;
+    if(t<-geom.Hn||t>geom.days){ tip.style.display="none"; return; }
+    const m=v=>sym()+(v*fx()).toLocaleString("en-US",{maximumFractionDigits:0}), b=sim.bands;
+    if(t<0){ const h=cur.hist[t+geom.Hn]; tip.textContent=`${shortDate(h[0])} · actual close ${sym()}${(h[1]*fx()).toFixed(2)}`; }
+    else tip.textContent=`${t===0?"Latest "+sym()+(mkt()*fx()).toFixed(2)+" · ":""}${shortDate(sim.dates[t])} · Claude ${m(guessAt(sim.dates[t]))}${(cur.gta5&&sim.evIdx>0)?" · GTA V repeat "+m(gta5At(t,sim.evIdx,mkt())):""} · most likely ${m(b[1][t])}–${m(b[3][t])}`;
+    tip.style.display="block"; const tw=tip.offsetWidth; tip.style.left=Math.max(0,Math.min(x+10,r.width-tw))+"px"; tip.style.top="4px";
+  }
+  canvas.addEventListener("mousemove",e=>showTip(e.clientX));
+  canvas.addEventListener("touchstart",e=>showTip(e.touches[0].clientX),{passive:true});
+  canvas.addEventListener("touchmove",e=>showTip(e.touches[0].clientX),{passive:true});
+  canvas.addEventListener("mouseleave",()=>tip.style.display="none");
+
+  // ---------- currency ----------
+  function setCur(c){
+    CUR=c;
+    $$(".curCAD").forEach(b=>{ b.classList.toggle("on",c==="CAD"); b.setAttribute("aria-pressed",c==="CAD"); });
+    $$(".curUSD").forEach(b=>{ b.classList.toggle("on",c==="USD"); b.setAttribute("aria-pressed",c==="USD"); });
+    $$(".curLbl").forEach(e=>e.textContent=c); $("editHint").textContent="amounts in "+c;
+    if(cur){ fillInputs(); position(); evaluate(); $("dFacts").textContent="Price "+fmt$(cur.price)+" ("+cur.priceNote+") · analyst average target "+fmt$(cur.target)+" · next event: "+cur.event.label+"."; }
+    else renderList();
+  }
+  $$(".curCAD").forEach(b=>b.addEventListener("click",()=>setCur("CAD")));
+  $$(".curUSD").forEach(b=>b.addEventListener("click",()=>setCur("USD")));
+
+  // ---------- inputs ----------
+  ["price","entry","invested"].forEach(k=>{
+    $(k).addEventListener("input",()=>{ readInput(k); position(); evaluate(); });
+    $(k).addEventListener("change",()=>{ readInput(k); fillInputs(); runSim(); });
+  });
+  ["target","stop"].forEach(k=>{ $(k).addEventListener("input",()=>{ readInput(k); evaluate(); }); $(k).addEventListener("change",()=>fillInputs()); });
+  $("rate").addEventListener("input",()=>{ fillInputs(); position(); evaluate(); });
+  function labels(){ $("daysV").textContent=$("days").value; $("volV").textContent=$("vol").value+"%"; }
+  ["days","vol"].forEach(id=>{ $(id).addEventListener("input",labels); $(id).addEventListener("change",runSim); });
+  ["pHit","mHit","pOk","mOk","pBad","mBad"].forEach(id=>$(id).addEventListener("change",runSim));
+  $("run").addEventListener("click",runSim);
+  window.addEventListener("resize",draw);
+  if(window.matchMedia){ const mq=window.matchMedia("(prefers-color-scheme: dark)"); if(mq.addEventListener) mq.addEventListener("change",draw); }
+  new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+
+  // ---------- PNG export ----------
+  let dl=null;
+  function exportPng(){
+    const S=2, W=1200, H=900, c=document.createElement("canvas"); c.width=W*S; c.height=H*S;
+    const g=c.getContext("2d"); g.scale(S,S);
+    g.fillStyle=css("--panel"); g.fillRect(0,0,W,H);
+    const ink=css("--ink"), muted=css("--muted"), disp=css("--display"), body=css("--body");
+    const sh=shares(), val=sh*st.price, pl=val-st.invested, pct=pl/st.invested*100;
+    g.fillStyle=ink; g.font="600 30px "+disp; g.textBaseline="top"; g.fillText(cur.t+" projection",48,40);
+    g.fillStyle=muted; g.font="18px "+body; g.fillText(cur.name+" · made "+new Date().toLocaleDateString("en-CA",{year:"numeric",month:"short",day:"numeric"})+" · amounts in "+CUR,48,82);
+    g.fillStyle=ink; g.font="600 40px "+disp; g.fillText(fmt$(val),48,124);
+    g.fillStyle=pl>=0?css("--good"):css("--bad"); g.font="24px "+disp; g.fillText(fmtSigned$(pl)+" ("+(pct>=0?"+":"")+pct.toFixed(2)+"%)",48,174);
+    g.fillStyle=muted; g.font="18px "+body; g.fillText("Share price "+fmt$(st.price)+" · bought at "+fmt$(st.entry)+" · "+sh.toFixed(4)+" shares",48,210);
+    g.save(); g.translate(32,250); paint(g,W-64,520,false,16); g.restore();
+    const items=[["--ink","Actual price"],["--guess","Claude's guess"]].concat(cur.gta5?[["--gta5","GTA V repeat"]]:[]).concat([["--accent","Middle of simulations"],["--good","Sell price"],["--bad","Stop-loss"]]);
+    let x=48; g.font="17px "+body; g.textBaseline="middle";
+    items.forEach(([v,t])=>{ g.fillStyle=css(v); g.fillRect(x,806,22,4); g.fillStyle=muted; g.fillText(t,x+30,808); x+=g.measureText(t).width+64; });
+    g.font="15px "+body; g.fillStyle=muted; g.textBaseline="top";
+    g.fillText("Shaded area: where most of 4,000 simulated prices land. Dotted line: "+cur.event.label+". Odds and opinion, not financial advice.",48,840);
+    return new Promise(r=>c.toBlob(r,"image/png"));
+  }
+  $("savePng").addEventListener("click",async()=>{
+    const btn=$("savePng"), msg=$("saveMsg"); if(!dl||!cur) return;
+    btn.disabled=true; msg.textContent="Preparing image…";
+    try{ const blob=await exportPng(); await dl.save({filename:cur.t+"-projection-"+new Date().toISOString().slice(0,10)+".png",data:blob}); msg.textContent="Saved."; }
+    catch(e){ const c=e&&e.code; msg.textContent=c==="declined"?"Download cancelled.":c==="rate_limited"?"A download prompt is already open. Try again in a moment.":"Couldn't download here. Try opening the app in Claude."; if(c==="unavailable"||c==="not_granted"||c==="capability_disabled") btn.hidden=true; }
+    btn.disabled=false;
+  });
+  if(window.claude&&typeof window.claude.use==="function"){ window.claude.use("downloads").then(ns=>{ dl=ns; if(ns) $("savePng").hidden=false; }).catch(()=>{}); }
+
+  // ---------- Update: hand off to Claude ----------
+  $$(".updBtn").forEach(btn=>btn.addEventListener("click",async()=>{
+    let copied=false; try{ if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText("update"); copied=true; } }catch(e){}
+    $$(".updMsg").forEach(m=>{ m.hidden=false; m.textContent=copied?"Copied \"update\". Paste it in your chat with Claude, or just type update.":"Type update in your chat with Claude to refresh prices, rankings and trends."; });
+  }));
+
+  // ---------- live data (data.json, refreshed by a GitHub Action each weekday) ----------
+  async function loadData(){
+    let d; try{ const r=await fetch("data.json",{cache:"no-store"}); if(!r.ok) return; d=await r.json(); }catch(e){ return; }
+    if(!d||!d.stocks) return;
+    let latest=TODAY;
+    STOCKS.forEach(s=>{
+      const x=d.stocks[s.t]; if(!x||!x.hist||x.hist.length<3) return;
+      const rows=x.hist.filter(r=>r[1]>0);
+      const last=rows[rows.length-1];
+      s.hist=rows.slice(0,-1); s.price=last[1]; s.priceNote="close "+shortDate(last[0]);
+      if(last[0]>latest) latest=last[0];
+      if(!s.sold){ const p=pos[s.t]; p.price=s.price; p.entry=s.price; p.target=+(s.price*1.12).toFixed(2); p.stop=+(s.price*0.90).toFixed(2); }
+    });
+    TODAY=latest;
+    if(d.rate&&d.rate.usdcad>0) $("rate").value=(+d.rate.usdcad).toFixed(4);
+    DATA_NOTE="Prices: closes up to "+shortDate(TODAY)+", refreshed automatically each weekday evening.";
+    $("homeNote").textContent="Ranked best to worst for a short-term buy with a catalyst in the next 6 weeks. "+DATA_NOTE+" Rankings and reasons change when you ask Claude to update. Tap a stock for details.";
+    if(cur) openStock(cur.t); else renderList();
+  }
+
+  // ---------- start ----------
+  renderList();
+  loadData();
+  const h=(location.hash||"").slice(1).toUpperCase();
+  if(h && STOCKS.some(s=>s.t===h)) openStock(h);
+})();
+</script>
+</body>
+</html>
