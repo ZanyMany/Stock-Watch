@@ -116,6 +116,19 @@ tr:last-child td{border-bottom:0}
 </head>
 <body>
 <div class="wrap">
+  <section class="panel" id="keyBox" hidden>
+    <h2>Live prices</h2>
+    <p style="margin:0 0 8px">To get live prices when you press Update, paste a free Finnhub key. It's saved only on this device and is never added to GitHub.</p>
+    <ol class="note" style="margin:0 0 10px;padding-left:18px">
+      <li>Sign up free at <a href="https://finnhub.io/register">finnhub.io/register</a> (email only).</li>
+      <li>Copy the API key shown on your dashboard.</li>
+    </ol>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <label for="fhKey" style="flex:1;min-width:200px"><span>Finnhub API key</span><input id="fhKey" type="text" autocomplete="off" spellcheck="false" style="font:inherit;font-family:var(--display);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)"></label>
+      <div style="display:flex;gap:8px;align-items:end"><button type="button" id="fhSave">Save and update</button><button type="button" class="ghost" id="fhCancel">Cancel</button></div>
+    </div>
+    <p class="note" id="fhMsg"></p>
+  </section>
 
   <!-- ===== Watchlist ===== -->
   <section id="home">
@@ -340,6 +353,7 @@ tr:last-child td{border-bottom:0}
   // ---------- state ----------
   let CUR="CAD", cur=null, st=null, sim=null, geom=null, TODAY="2026-11-23", DATA_NOTE="";
   const mkt=()=>cur.sold?cur.price:st.price;
+  const canFetchOut = location.protocol==="https:" && /github\.io$/.test(location.hostname);
   const pos = {}; // per-ticker position state (USD)
   STOCKS.forEach(s=>{
     if(s.owned){ pos[s.t]={price:s.price, ccy:"CAD", entry:s.entryCAD, invested:s.investedCAD, target:+(s.price*1.12).toFixed(2), stop:+(s.price*0.90).toFixed(2)}; return; }
@@ -416,7 +430,7 @@ tr:last-child td{border-bottom:0}
     $("nowLbl").textContent=cur.sold?"What you got by selling":"Selling today";
     $("editNote").textContent=cur.owned?"You bought at C$191. Set \"Amount invested\" to what you actually put in (it starts at C$1,000).":cur.sold?"Edit the price to your actual sale price for the exact result.":"Starts with your TTWO money (about US$1,099) bought at today's price. Type in whichever currency is selected.";
     $("lgGta5").hidden=!cur.gta5; $("ttwoCompare").hidden=!cur.gta5;
-    $("liveStatus").textContent="Price: "+cur.priceNote+"."+(DATA_NOTE?" Updates automatically after each trading day.":" Tap Update, then send it to Claude to refresh.");
+    $("liveStatus").textContent="Price: "+cur.priceNote+(cur.priceNote.endsWith(".")?"":".")+(canFetchOut?" Press Update for the live price.":" Tap Update, then send it to Claude to refresh.");
     $("chartNote").textContent="Left: actual daily closes. Right: where most simulated prices land, using this stock's real recent swings. Dotted line: "+cur.event.label+", "+shortDate(cur.event.d)+".";
     const v=cur.t==="TTWO"?48:realizedVol(cur.hist); $("vol").value=v;
     $("volNote").textContent="Default swing size ("+v+"%) comes from "+cur.t+"'s actual daily moves recently.";
@@ -653,11 +667,60 @@ tr:last-child td{border-bottom:0}
   });
   if(window.claude&&typeof window.claude.use==="function"){ window.claude.use("downloads").then(ns=>{ dl=ns; if(ns) $("savePng").hidden=false; }).catch(()=>{}); }
 
-  // ---------- Update: hand off to Claude ----------
-  $$(".updBtn").forEach(btn=>btn.addEventListener("click",async()=>{
+  // ---------- Update: live prices (Finnhub quote + open.er-api.com FX); falls back to asking Claude ----------
+  const LS="stockwatch.finnhubKey";
+  const getKey=()=>{ try{ return localStorage.getItem(LS)||""; }catch(e){ return ""; } };
+  const setKey=k=>{ try{ localStorage.setItem(LS,k); return true; }catch(e){ return false; } };
+  const msg=(t,cls)=>$$(".updMsg").forEach(m=>{ m.hidden=false; m.className="note updMsg"+(cls?" "+cls:""); m.textContent=t; });
+  let updating=false;
+  async function liveUpdate(silent){
+    const key=getKey(); if(!key||updating) return false;
+    updating=true; $$(".updBtn").forEach(b=>{ b.disabled=true; b.textContent="Updating…"; });
+    if(!silent) msg("Getting live prices…");
+    let ok=0, fail=[], rateOk=false, newest=0;
+    await Promise.all(STOCKS.map(async s=>{
+      try{
+        const r=await fetch("https://finnhub.io/api/v1/quote?symbol="+encodeURIComponent(s.t)+"&token="+encodeURIComponent(key),{cache:"no-store"});
+        if(r.status===401||r.status===403) throw new Error("key");
+        if(!r.ok) throw new Error("http "+r.status);
+        const q=await r.json(); if(!(q&&q.c>0)) throw new Error("no price");
+        s.price=q.c; newest=Math.max(newest,(q.t||0)*1000);
+        const when=q.t?new Date(q.t*1000):new Date();
+        s.priceNote="live, "+when.toLocaleString("en-CA",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});
+        if(s.owned) pos[s.t].price=s.price;
+        else if(!s.sold){ const p=pos[s.t]; p.price=s.price; p.entry=s.price; p.target=+(s.price*1.12).toFixed(2); p.stop=+(s.price*0.90).toFixed(2); }
+        ok++;
+      }catch(e){ fail.push(s.t+(e.message==="key"?" (key rejected)":"")); }
+    }));
+    try{ const r=await fetch("https://open.er-api.com/v6/latest/USD",{cache:"no-store"}); const j=await r.json(); const c=j&&j.rates&&j.rates.CAD; if(c>0){ $("rate").value=(+c).toFixed(4); rateOk=true; } }catch(e){}
+    updating=false; $$(".updBtn").forEach(b=>{ b.disabled=false; b.textContent="Update"; });
+    if(!ok){
+      const badKey=fail.some(f=>f.includes("key rejected"));
+      if(badKey){ msg("Finnhub didn't accept that key. Press Update to enter it again.","neg"); try{ localStorage.removeItem(LS); }catch(e){} }
+      else if(!silent) askClaude("Live prices aren't reachable from here. ");
+      return false;
+    }
+    if(newest){ const d=new Date(newest).toLocaleDateString("en-CA",{timeZone:"America/New_York"}); if(d>TODAY) TODAY=d; }
+    if(cur){ const t=cur.t; st=pos[t]; openStock(t); } else renderList();
+    const tm=new Date().toLocaleTimeString("en-CA",{hour:"numeric",minute:"2-digit"});
+    msg("Live prices updated "+tm+(rateOk?" · 1 USD = "+(+$("rate").value).toFixed(4)+" CAD":"")+(fail.length?" · couldn't get "+fail.join(", "):"")+". Rankings and reasons change when you ask Claude.","pos");
+    return true;
+  }
+  async function askClaude(prefix){
     let copied=false; try{ if(navigator.clipboard&&navigator.clipboard.writeText){ await navigator.clipboard.writeText("update"); copied=true; } }catch(e){}
-    $$(".updMsg").forEach(m=>{ m.hidden=false; m.textContent=copied?"Copied \"update\". Paste it in your chat with Claude, or just type update.":"Type update in your chat with Claude to refresh prices, rankings and trends."; });
+    msg((prefix||"")+(copied?"Copied \"update\". Paste it in your chat with Claude.":"Type update in your chat with Claude to refresh."));
+  }
+  $$(".updBtn").forEach(btn=>btn.addEventListener("click",async()=>{
+    if(!canFetchOut){ askClaude("In Claude, prices come from chat. For live prices, open the GitHub version (zanymany.github.io/Stock-Watch). "); return; }
+    if(!getKey()){ $("keyBox").hidden=false; $("fhKey").focus(); window.scrollTo(0,0); return; }
+    await liveUpdate(false);
   }));
+  $("fhSave").addEventListener("click",async()=>{
+    const k=$("fhKey").value.trim(); if(k.length<10){ $("fhMsg").textContent="That doesn't look like a Finnhub key. Copy it from your Finnhub dashboard."; return; }
+    if(!setKey(k)){ $("fhMsg").textContent="This browser won't save it (private browsing?). Try a normal Safari tab."; return; }
+    $("keyBox").hidden=true; $("fhKey").value=""; await liveUpdate(false);
+  });
+  $("fhCancel").addEventListener("click",()=>{ $("keyBox").hidden=true; });
 
   // ---------- live data (data.json, refreshed by a GitHub Action each weekday) ----------
   async function loadData(){
@@ -683,7 +746,7 @@ tr:last-child td{border-bottom:0}
 
   // ---------- start ----------
   renderList();
-  loadData();
+  loadData().then(()=>{ if(canFetchOut&&getKey()) liveUpdate(true); });
   const h=(location.hash||"").slice(1).toUpperCase();
   if(h && STOCKS.some(s=>s.t===h)) openStock(h);
 })();

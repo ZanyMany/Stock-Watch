@@ -4,6 +4,8 @@ A ranked watchlist of stocks with upcoming catalysts. Tap a stock to see the rea
 
 ## How it updates
 
+- **Update button (live):** on the GitHub Pages site, pressing Update gets live quotes from Finnhub and the USD/CAD rate from open.er-api.com. Paste a free Finnhub key once; it stays in your browser and is never committed.
+
 - **Prices and the USD/CAD rate:** a GitHub Action (`.github/workflows/update.yml`) runs every weekday at 5:30 p.m. Toronto time. It fetches closing prices from Alpha Vantage and saves them to `data.json`, and the page loads that file. It uses 8 of the 25 free daily requests.
 - **Rankings, reasons and projected paths** are written into `index.html` and change only when they're edited.
 
