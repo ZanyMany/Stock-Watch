@@ -1,12 +1,12 @@
 // Fetches daily closing prices and the USD/CAD rate from Alpha Vantage
 // and writes data.json for the Stock Watch page.
-// Free Alpha Vantage keys allow 25 requests a day; this uses 7.
+// Free Alpha Vantage keys allow 25 requests a day; this uses 8.
 import { writeFile, readFile } from "node:fs/promises";
 
 const KEY = process.env.ALPHAVANTAGE_API_KEY;
 if (!KEY) { console.error("Missing ALPHAVANTAGE_API_KEY secret."); process.exit(1); }
 
-const TICKERS = ["AMZN", "NVDA", "COST", "MU", "MELI", "TTWO"];
+const TICKERS = ["SHOP", "AMZN", "NVDA", "COST", "MU", "MELI", "TTWO"];
 const KEEP = 23; // trading days of history to keep
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 

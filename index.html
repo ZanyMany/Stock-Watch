@@ -277,6 +277,15 @@ tr:last-child td{border-bottom:0}
   // =====================================================================
   const PROCEEDS = 1099.10; // TTWO sale proceeds (estimated at US$230.68)
   const STOCKS = [
+    { t:"SHOP", name:"Shopify", score:null, risk:"High", owned:true,
+      price:135.05, priceNote:"about 12:15 p.m. Nov 23", target:177.26,
+      event:{d:"2026-12-01", label:"Black Friday–Cyber Monday sales results", s:[[45,6],[35,0],[20,-6]]},
+      summary:"You own this one: bought at C$191 a share (Toronto listing). It's bouncing today after a steep 4-week slide, with Shopify's biggest sales weekend of the year just ahead.",
+      pros:["Q3 revenue rose 31.6% to US$3.74B; margins and free cash flow also grew.","Up about 9% today after falling to US$123.72 on Friday.","Black Friday–Cyber Monday (Nov 27–30) is Shopify's biggest weekend; it usually publishes merchant sales totals right after.","Average analyst target about US$177, roughly +31% from here."],
+      cons:["Down about 27% from US$168.68 on Oct 23; still below its 20- and 50-day averages, so the downtrend isn't confirmed over.","Q3 merchant sales (GMV) slightly missed; gross margins under pressure.","Swings about twice as much as the market (beta about 2).","Priced high: about 75–80× earnings."],
+      hist:[["2026-10-23",168.68],["2026-10-26",168.18],["2026-10-27",165.81],["2026-10-28",168.22],["2026-10-29",166.89],["2026-10-30",157.49],["2026-11-02",156.22],["2026-11-03",142.57],["2026-11-04",153.03],["2026-11-05",143.75],["2026-11-06",148.91],["2026-11-09",152.06],["2026-11-10",146.61],["2026-11-11",149.26],["2026-11-12",146.78],["2026-11-13",147.09],["2026-11-16",147.81],["2026-11-17",141.90],["2026-11-18",139.42],["2026-11-19",131.97],["2026-11-20",123.72]],
+      guess:[{d:"2026-11-23",p:135.05,why:"Now: +9% bounce."},{d:"2026-11-25",p:132,why:"Gives back part of a big one-day jump; the trend is still down."},{d:"2026-11-27",p:136,why:"Black Friday shopping starts; early sales headlines."},{d:"2026-12-01",p:143,why:"Shopify posts record weekend merchant sales (it has most years)."},{d:"2026-12-18",p:140,why:"Settles below its 50-day average of about US$157."},{d:"2027-03-01",p:150,why:"Slow recovery toward analyst targets if growth holds."}],
+      ccy:"CAD", entryCAD:191, investedCAD:1000 },
     { t:"AMZN", name:"Amazon", score:82, risk:"Medium",
       price:267.90, priceNote:"about midday Nov 11", target:326.99,
       event:{d:"2026-11-27", label:"Black Friday / holiday shopping", s:[[40,3],[40,0],[20,-4]]},
@@ -329,10 +338,11 @@ tr:last-child td{border-bottom:0}
   ];
 
   // ---------- state ----------
-  let CUR="CAD", cur=null, st=null, sim=null, geom=null, TODAY="2026-11-11", DATA_NOTE="";
+  let CUR="CAD", cur=null, st=null, sim=null, geom=null, TODAY="2026-11-23", DATA_NOTE="";
   const mkt=()=>cur.sold?cur.price:st.price;
   const pos = {}; // per-ticker position state (USD)
   STOCKS.forEach(s=>{
+    if(s.owned){ pos[s.t]={price:s.price, ccy:"CAD", entry:s.entryCAD, invested:s.investedCAD, target:+(s.price*1.12).toFixed(2), stop:+(s.price*0.90).toFixed(2)}; return; }
     pos[s.t] = s.sold
       ? {price:s.salePrice, entry:s.entry, invested:s.invested, target:250, stop:205}
       : {price:s.price, entry:s.price, invested:PROCEEDS, target:+(s.price*1.12).toFixed(2), stop:+(s.price*0.90).toFixed(2)};
@@ -358,26 +368,32 @@ tr:last-child td{border-bottom:0}
   // ---------- watchlist ----------
   function renderList(){
     const L=$("list"); L.textContent="";
-    const ranked=STOCKS.filter(s=>!s.sold).sort((a,b)=>b.score-a.score);
-    const all=[...ranked, ...STOCKS.filter(s=>s.sold)];
+    const ranked=STOCKS.filter(s=>!s.sold&&!s.owned).sort((a,b)=>b.score-a.score);
+    const owned=STOCKS.filter(s=>s.owned);
+    const head=txt=>{ const h=document.createElement("h2"); h.textContent=txt; h.style.margin="8px 0 0"; L.append(h); };
+    let n=0;
+    const all=[...owned, ...ranked, ...STOCKS.filter(s=>s.sold)];
     all.forEach((s,i)=>{
+      if(i===0&&owned.length) head("You own");
+      if(s===ranked[0]) head("Watchlist, best to worst");
+      if(s.sold&&s===all.find(x=>x.sold)) head("Past trades");
       const b=document.createElement("button"); b.type="button"; b.className="row"; b.setAttribute("aria-label",s.name+" details");
-      const rk=document.createElement("div"); rk.className="rank"; rk.textContent=s.sold?"–":String(i+1);
+      const rk=document.createElement("div"); rk.className="rank"; rk.textContent=(s.sold||s.owned)?"–":String(++n);
       const mid=document.createElement("div");
       const line=document.createElement("div"); const tt=document.createElement("span"); tt.className="t"; tt.textContent=s.t+" ";
       const nn=document.createElement("span"); nn.className="n"; nn.textContent=s.name; line.append(tt,nn);
       const meta=document.createElement("div"); meta.className="meta";
-      const chip=document.createElement("span"); chip.className="chip "+riskCls(s.risk); chip.textContent=s.sold?"Sold":s.risk+" risk";
+      const chip=document.createElement("span"); chip.className="chip "+riskCls(s.risk); chip.textContent=s.sold?"Sold":s.owned?"Owned":s.risk+" risk";
       const ev=document.createElement("span"); ev.textContent=(s.sold?"Watching: ":"Next: ")+s.event.label.split(" (")[0]+", "+shortDate(s.event.d);
       meta.append(chip,ev);
       mid.append(line,meta);
       const right=document.createElement("div"); right.className="right";
       const px=document.createElement("div"); px.className="px"; px.textContent=fmt$(s.price);
       const sc=document.createElement("div"); sc.className="score";
-      if(s.sold){ const p=pos[s.t], pl=p.invested/p.entry*p.price-p.invested; sc.textContent="Result "+fmtSigned$(pl); sc.className="score pos"; }
+      if(s.sold||s.owned){ const p=pos[s.t], pl=I(p)/E(p)*p.price-I(p), pct=pl/I(p)*100; sc.textContent=(s.sold?"Result ":"")+fmtSigned$(pl)+(s.owned?" ("+(pct>=0?"+":"")+pct.toFixed(1)+"%)":""); sc.className="score "+(pl>=0?"pos":"neg"); }
       else { const up=upside(s); const lab=document.createElement("span"); lab.textContent="Score "+s.score; const bar=document.createElement("span"); bar.className="bar"; const fill=document.createElement("i"); fill.style.width=s.score+"%"; bar.append(fill); sc.append(lab,bar);
         const u=document.createElement("div"); u.className="score"; u.textContent="Analysts "+(up>=0?"+":"")+up.toFixed(0)+"%"; right.append(px,sc,u); }
-      if(s.sold) right.append(px,sc);
+      if(s.sold||s.owned) right.append(px,sc);
       b.append(rk,mid,right);
       b.addEventListener("click",()=>openStock(s.t));
       L.append(b);
@@ -389,16 +405,16 @@ tr:last-child td{border-bottom:0}
     cur=STOCKS.find(s=>s.t===t); st=pos[t];
     $("home").hidden=true; $("detail").hidden=false;
     $("dTitle").textContent=cur.t; $("dName").textContent=cur.name;
-    $("dRisk").className="chip "+riskCls(cur.risk); $("dRisk").textContent=cur.sold?"Sold":cur.risk+" risk";
-    const ranked=STOCKS.filter(s=>!s.sold).sort((a,b)=>b.score-a.score);
-    $("dRank").textContent=cur.sold?"Past trade":"#"+(ranked.indexOf(cur)+1)+" of "+ranked.length+" · score "+cur.score;
+    $("dRisk").className="chip "+riskCls(cur.risk); $("dRisk").textContent=cur.sold?"Sold":cur.owned?"You own this":cur.risk+" risk";
+    const ranked=STOCKS.filter(s=>!s.sold&&!s.owned).sort((a,b)=>b.score-a.score);
+    $("dRank").textContent=cur.owned?cur.risk+" risk":cur.sold?"Past trade":"#"+(ranked.indexOf(cur)+1)+" of "+ranked.length+" · score "+cur.score;
     $("dSummary").textContent=cur.summary;
     const fill=(id,arr)=>{ const u=$(id); u.textContent=""; arr.forEach(x=>{ const li=document.createElement("li"); li.textContent=x; u.append(li); }); };
     fill("dFor",cur.pros); fill("dAgainst",cur.cons);
     $("dFacts").textContent="Price "+fmt$(cur.price)+" ("+cur.priceNote+") · analyst average target "+fmt$(cur.target)+" · next event: "+cur.event.label+".";
-    $("posTitle").textContent=cur.sold?"Your trade (sold)":"If you invest";
+    $("posTitle").textContent=cur.sold?"Your trade (sold)":cur.owned?"Your position":"If you invest";
     $("nowLbl").textContent=cur.sold?"What you got by selling":"Selling today";
-    $("editNote").textContent=cur.sold?"Edit the price to your actual sale price for the exact result.":"Starts with your TTWO money (about US$1,099) bought at today's price. Type in whichever currency is selected.";
+    $("editNote").textContent=cur.owned?"You bought at C$191. Set \"Amount invested\" to what you actually put in (it starts at C$1,000).":cur.sold?"Edit the price to your actual sale price for the exact result.":"Starts with your TTWO money (about US$1,099) bought at today's price. Type in whichever currency is selected.";
     $("lgGta5").hidden=!cur.gta5; $("ttwoCompare").hidden=!cur.gta5;
     $("liveStatus").textContent="Price: "+cur.priceNote+"."+(DATA_NOTE?" Updates automatically after each trading day.":" Tap Update, then send it to Claude to refresh.");
     $("chartNote").textContent="Left: actual daily closes. Right: where most simulated prices land, using this stock's real recent swings. Dotted line: "+cur.event.label+", "+shortDate(cur.event.d)+".";
@@ -414,9 +430,12 @@ tr:last-child td{border-bottom:0}
   $("backBtn").addEventListener("click",goHome);
 
   const MONEY=["price","entry","invested","target","stop"];
-  function fillInputs(except){ if(!st) return; MONEY.forEach(k=>{ if(k!==except) $(k).value=(st[k]*fx()).toFixed(2); }); }
-  function readInput(k){ const v=parseFloat($(k).value); if(isFinite(v)&&v>0) st[k]=v/fx(); }
-  const shares=()=>st.entry>0?st.invested/st.entry:0;
+  const native=k=>st.ccy==="CAD"&&(k==="entry"||k==="invested");
+  function fillInputs(except){ if(!st) return; MONEY.forEach(k=>{ if(k===except) return; const usd=native(k)?st[k]/rate():st[k]; $(k).value=(usd*fx()).toFixed(2); }); }
+  function readInput(k){ const v=parseFloat($(k).value); if(!(isFinite(v)&&v>0)) return; const usd=v/fx(); st[k]=native(k)?usd*rate():usd; }
+  const toUSD=(p,v)=>p.ccy==="CAD"?v/rate():v;
+  const E=(p=st)=>toUSD(p,p.entry), I=(p=st)=>toUSD(p,p.invested);
+  const shares=()=>E()>0?I()/E():0;
 
   function guessPts(){ return [{d:TODAY,p:mkt(),why:"Now."}].concat(cur.guess.filter(g=>g.d>TODAY)); }
   function guessAt(iso){
@@ -435,18 +454,18 @@ tr:last-child td{border-bottom:0}
   function guessTable(){
     const tb=$("guessRows"); tb.textContent=""; const sh=shares();
     guessPts().forEach(g=>{
-      const tr=document.createElement("tr"), pl=sh*g.p-st.invested;
+      const tr=document.createElement("tr"), pl=sh*g.p-I();
       [[shortDate(g.d),""],[g.why,""],[fmt$(g.p),"n"],[fmtSigned$(pl),"n "+(pl>=0?"pos":"neg")]].forEach(([x,c])=>{ const td=document.createElement("td"); td.textContent=x; if(c) td.className=c; tr.append(td); });
       tb.append(tr);
     });
   }
   function position(){
     if(!st) return;
-    const sh=shares(), val=sh*st.price, pl=val-st.invested, pct=st.invested>0?pl/st.invested*100:0;
+    const sh=shares(), val=sh*st.price, pl=val-I(), pct=I()>0?pl/I()*100:0;
     $("tValue").textContent=fmt$(val);
     $("tPL").textContent=fmtSigned$(pl); $("tPL").className=pl>=0?"pos":"neg";
     $("tPct").textContent="("+(pct>=0?"+":"")+pct.toFixed(2)+"%)"; $("tPct").className=pl>=0?"pos":"neg";
-    $("tPrice").textContent=fmt$(st.price); $("tEntry").textContent=fmt$(st.entry); $("tShares").textContent=sh.toFixed(4);
+    $("tPrice").textContent=fmt$(st.price); $("tEntry").textContent=fmt$(E()); $("tShares").textContent=sh.toFixed(4);
     guessTable();
   }
 
@@ -476,7 +495,7 @@ tr:last-child td{border-bottom:0}
   }
   function evaluate(){
     if(!sim) return;
-    const sh=shares(), inv=st.invested, T=st.target, S=st.stop;
+    const sh=shares(), inv=I(), T=st.target, S=st.stop;
     let nT=0,nS=0,nN=0,sT=0,sS=0,sN=0;
     for(const path of sim.paths){ let done=false;
       for(let t=1;t<=sim.days;t++){ const x=path[t]; if(T>0&&x>=T){nT++;sT+=sh*x-inv;done=true;break;} if(S>0&&x<=S){nS++;sS+=sh*x-inv;done=true;break;} }
@@ -490,6 +509,7 @@ tr:last-child td{border-bottom:0}
     const diff=gE-gNow;
     $("verdict").textContent = cur.sold
       ? (diff>5 ? `If you had held with this plan, the average outcome would be ${fmt$(diff)} better than selling, with a ${pc(nS)} chance of hitting the stop-loss.` : diff<-5 ? `Selling looks smart: holding with this plan averages ${fmt$(-diff)} worse.` : `Selling and holding come out about the same on average.`)
+      : cur.owned ? `Holding with this plan averages ${fmtSigned$(gE)} on your ${fmt$(inv)}, versus ${fmtSigned$(gNow)} if you sold now. ${pc(nT)} chance of reaching your sell price, ${pc(nS)} chance of the stop-loss.`
       : `This plan averages ${fmtSigned$(gE)} on your ${fmt$(inv)}, with a ${pc(nT)} chance of reaching your sell price and a ${pc(nS)} chance of the stop-loss.`;
     draw();
   }
@@ -509,8 +529,8 @@ tr:last-child td{border-bottom:0}
     const bands=sim.bands.map(b=>Array.from(b,v=>v*f));
     const gp=dates.slice(0,days+1).map(d=>guessAt(d)*f);
     const g5=(cur.gta5&&evIdx>0)?dates.slice(0,days+1).map((_,t)=>gta5At(t,evIdx,mkt())*f):[];
-    const T=st.target*f, S=st.stop*f, E=st.entry*f, hp=HIST.map(h=>h[1]*f);
-    let lo=Math.min(...bands[0],...gp,...g5,...hp,S||Infinity,E), hi=Math.max(...bands[4],...gp,...g5,...hp,T||-Infinity,E);
+    const T=st.target*f, S=st.stop*f, BUY=E()*f, hp=HIST.map(h=>h[1]*f);
+    let lo=Math.min(...bands[0],...gp,...g5,...hp,S||Infinity,BUY), hi=Math.max(...bands[4],...gp,...g5,...hp,T||-Infinity,BUY);
     const span=hi-lo; lo-=span*0.04; hi+=span*0.04;
     const X=t=>padL+(W-padL-padR)*(t+Hn)/(days+Hn), Y=v=>padT+(H-padT-padB)*(1-(v-lo)/(hi-lo));
     if(live) geom={padL,padR,W,days,Hn,X,Y,gp,hp,bands,padT,padB,H};
@@ -527,7 +547,7 @@ tr:last-child td{border-bottom:0}
     band(0,4,css("--band1")); band(1,3,css("--band2"));
     const hline=(v,c,label,below)=>{ if(!(v>0)) return; ctx.save(); ctx.strokeStyle=c; ctx.setLineDash([6,4]); ctx.beginPath(); ctx.moveTo(padL,Y(v)); ctx.lineTo(W-padR,Y(v)); ctx.stroke(); ctx.restore();
       const txt=label+" "+SY+Math.round(v).toLocaleString("en-US"); ctx.fillStyle=c; ctx.textBaseline=below?"top":"bottom"; ctx.textAlign=below?"right":"left"; ctx.fillText(txt,below?W-padR-2:padL+4,below?Y(v)+2:Y(v)-2); };
-    hline(T,css("--good"),"Sell"); hline(S,css("--bad"),"Stop",true); hline(E,css("--muted"),"Bought");
+    hline(T,css("--good"),"Sell"); hline(S,css("--bad"),"Stop",true); hline(BUY,css("--muted"),"Bought");
     ctx.save(); ctx.fillStyle=css("--line"); ctx.globalAlpha=.35; ctx.fillRect(padL,padT,X(0)-padL,H-padT-padB); ctx.restore();
     ctx.save(); ctx.strokeStyle=css("--ink"); ctx.lineWidth=2.2; ctx.lineJoin="round"; ctx.beginPath(); hp.forEach((v,i)=>ctx.lineTo(X(i-Hn),Y(v))); ctx.lineTo(X(0),Y(mkt()*f)); ctx.stroke(); ctx.restore();
     const line=(arr,c,w,dash)=>{ ctx.save(); ctx.strokeStyle=c; ctx.lineWidth=w; if(dash) ctx.setLineDash(dash); ctx.beginPath(); arr.forEach((v,t)=>ctx.lineTo(X(t),Y(v))); ctx.stroke(); ctx.restore(); };
@@ -557,7 +577,7 @@ tr:last-child td{border-bottom:0}
     const sl=$("scrub"); sl.min=-Hn; sl.max=sim.days; sl.value=t;
     const f=fx(), m=v=>fmt$(v,0), sh=shares(), out=$("readout"); out.textContent="";
     const cell=(label,val,cls)=>{ const d=document.createElement("div"); const sp=document.createElement("span"); sp.textContent=label; const bb=document.createElement("b"); bb.textContent=val; if(cls) bb.className=cls; d.append(sp,bb); out.append(d); };
-    const plOf=p=>{ const v=sh*p-st.invested; return [fmtSigned$(v), v>=0?"pos":"neg"]; };
+    const plOf=p=>{ const v=sh*p-I(); return [fmtSigned$(v), v>=0?"pos":"neg"]; };
     if(t<0){
       const h=cur.hist[t+Hn]; $("scrubDate").textContent=shortDate(h[0]);
       cell("Actual close",fmt$(h[1])); const [a,c]=plOf(h[1]); cell("Your profit at this price",a,c);
@@ -610,12 +630,12 @@ tr:last-child td{border-bottom:0}
     const g=c.getContext("2d"); g.scale(S,S);
     g.fillStyle=css("--panel"); g.fillRect(0,0,W,H);
     const ink=css("--ink"), muted=css("--muted"), disp=css("--display"), body=css("--body");
-    const sh=shares(), val=sh*st.price, pl=val-st.invested, pct=pl/st.invested*100;
+    const sh=shares(), val=sh*st.price, pl=val-I(), pct=pl/I()*100;
     g.fillStyle=ink; g.font="600 30px "+disp; g.textBaseline="top"; g.fillText(cur.t+" projection",48,40);
     g.fillStyle=muted; g.font="18px "+body; g.fillText(cur.name+" · made "+new Date().toLocaleDateString("en-CA",{year:"numeric",month:"short",day:"numeric"})+" · amounts in "+CUR,48,82);
     g.fillStyle=ink; g.font="600 40px "+disp; g.fillText(fmt$(val),48,124);
     g.fillStyle=pl>=0?css("--good"):css("--bad"); g.font="24px "+disp; g.fillText(fmtSigned$(pl)+" ("+(pct>=0?"+":"")+pct.toFixed(2)+"%)",48,174);
-    g.fillStyle=muted; g.font="18px "+body; g.fillText("Share price "+fmt$(st.price)+" · bought at "+fmt$(st.entry)+" · "+sh.toFixed(4)+" shares",48,210);
+    g.fillStyle=muted; g.font="18px "+body; g.fillText("Share price "+fmt$(st.price)+" · bought at "+fmt$(E())+" · "+sh.toFixed(4)+" shares",48,210);
     g.save(); g.translate(32,250); paint(g,W-64,520,false,16); g.restore();
     const items=[["--ink","Actual price"],["--guess","Claude's guess"]].concat(cur.gta5?[["--gta5","GTA V repeat"]]:[]).concat([["--accent","Middle of simulations"],["--good","Sell price"],["--bad","Stop-loss"]]);
     let x=48; g.font="17px "+body; g.textBaseline="middle";
@@ -643,18 +663,20 @@ tr:last-child td{border-bottom:0}
   async function loadData(){
     let d; try{ const r=await fetch("data.json",{cache:"no-store"}); if(!r.ok) return; d=await r.json(); }catch(e){ return; }
     if(!d||!d.stocks) return;
-    let latest=TODAY;
+    let latest=TODAY, dataLatest="0"; // never move "today" backwards
+
     STOCKS.forEach(s=>{
       const x=d.stocks[s.t]; if(!x||!x.hist||x.hist.length<3) return;
       const rows=x.hist.filter(r=>r[1]>0);
       const last=rows[rows.length-1];
       s.hist=rows.slice(0,-1); s.price=last[1]; s.priceNote="close "+shortDate(last[0]);
-      if(last[0]>latest) latest=last[0];
-      if(!s.sold){ const p=pos[s.t]; p.price=s.price; p.entry=s.price; p.target=+(s.price*1.12).toFixed(2); p.stop=+(s.price*0.90).toFixed(2); }
+      if(last[0]>latest) latest=last[0]; if(last[0]>dataLatest) dataLatest=last[0];
+      if(s.owned){ pos[s.t].price=s.price; }
+      else if(!s.sold){ const p=pos[s.t]; p.price=s.price; p.entry=s.price; p.target=+(s.price*1.12).toFixed(2); p.stop=+(s.price*0.90).toFixed(2); }
     });
     TODAY=latest;
     if(d.rate&&d.rate.usdcad>0) $("rate").value=(+d.rate.usdcad).toFixed(4);
-    DATA_NOTE="Prices: closes up to "+shortDate(TODAY)+", refreshed automatically each weekday evening.";
+    DATA_NOTE="Prices: closes up to "+shortDate(dataLatest)+", refreshed automatically each weekday evening.";
     $("homeNote").textContent="Ranked best to worst for a short-term buy with a catalyst in the next 6 weeks. "+DATA_NOTE+" Rankings and reasons change when you ask Claude to update. Tap a stock for details.";
     if(cur) openStock(cur.t); else renderList();
   }
