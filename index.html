@@ -183,7 +183,7 @@ tr:last-child td{border-bottom:0}
           <label for="price"><span>Current share price (<span class="curLbl">CAD</span>)</span><input id="price" type="number" step="0.01"></label>
           <label for="entry"><span>Buy price per share (<span class="curLbl">CAD</span>)</span><input id="entry" type="number" step="0.01"></label>
           <label for="invested"><span>Amount invested (<span class="curLbl">CAD</span>)</span><input id="invested" type="number" step="0.01"></label>
-          <label for="rate"><span>Exchange rate: 1 USD = ? CAD</span><input id="rate" type="number" step="0.0001" value="1.4202"></label>
+          <label for="rate"><span>Exchange rate: 1 USD = ? CAD</span><input id="rate" type="number" step="0.0001" value="1.4264"></label>
         </div>
         <p class="note" id="editNote">Type in whichever currency is selected; switching converts at the exchange rate above.</p>
       </details>
@@ -291,14 +291,14 @@ tr:last-child td{border-bottom:0}
   const PROCEEDS = 1099.10; // TTWO sale proceeds (estimated at US$230.68)
   const STOCKS = [
     { t:"SHOP", name:"Shopify", score:null, risk:"High", owned:true,
-      price:135.05, priceNote:"about 12:15 p.m. Nov 23", target:177.26,
+      price:127.66, priceNote:"about 10 a.m. Nov 25", priceDate:"2026-11-25", target:177.26,
       event:{d:"2026-12-01", label:"Black Friday–Cyber Monday sales results", s:[[45,6],[35,0],[20,-6]]},
-      summary:"You own this one: bought at C$191 a share (Toronto listing). It's bouncing today after a steep 4-week slide, with Shopify's biggest sales weekend of the year just ahead.",
-      pros:["Q3 revenue rose 31.6% to US$3.74B; margins and free cash flow also grew.","Up about 9% today after falling to US$123.72 on Friday.","Black Friday–Cyber Monday (Nov 27–30) is Shopify's biggest weekend; it usually publishes merchant sales totals right after.","Average analyst target about US$177, roughly +31% from here."],
-      cons:["Down about 27% from US$168.68 on Oct 23; still below its 20- and 50-day averages, so the downtrend isn't confirmed over.","Q3 merchant sales (GMV) slightly missed; gross margins under pressure.","Swings about twice as much as the market (beta about 2).","Priced high: about 75–80× earnings."],
-      hist:[["2026-10-23",168.68],["2026-10-26",168.18],["2026-10-27",165.81],["2026-10-28",168.22],["2026-10-29",166.89],["2026-10-30",157.49],["2026-11-02",156.22],["2026-11-03",142.57],["2026-11-04",153.03],["2026-11-05",143.75],["2026-11-06",148.91],["2026-11-09",152.06],["2026-11-10",146.61],["2026-11-11",149.26],["2026-11-12",146.78],["2026-11-13",147.09],["2026-11-16",147.81],["2026-11-17",141.90],["2026-11-18",139.42],["2026-11-19",131.97],["2026-11-20",123.72]],
-      guess:[{d:"2026-11-23",p:135.05,why:"Now: +9% bounce."},{d:"2026-11-25",p:132,why:"Gives back part of a big one-day jump; the trend is still down."},{d:"2026-11-27",p:136,why:"Black Friday shopping starts; early sales headlines."},{d:"2026-12-01",p:143,why:"Shopify posts record weekend merchant sales (it has most years)."},{d:"2026-12-18",p:140,why:"Settles below its 50-day average of about US$157."},{d:"2027-03-01",p:150,why:"Slow recovery toward analyst targets if growth holds."}],
-      ccy:"CAD", entryCAD:191, investedCAD:1000 },
+      summary:"You own this one: C$2,000 bought at C$191 a share (Toronto listing). Monday's 9% bounce has faded and it's back near last week's low, with Shopify's biggest sales weekend of the year just ahead.",
+      pros:["Q3 revenue rose 31.6% to US$3.74B; margins and free cash flow also grew.","Near oversold levels: it's at the bottom of its recent trading range, where buyers stepped in on Nov 20.","Black Friday–Cyber Monday (Nov 27–30) is Shopify's biggest weekend; it usually publishes merchant sales totals right after.","Average analyst target about US$177, roughly +31% from here."],
+      cons:["Down about 24% from US$168.68 on Oct 23; Monday's 9% jump faded within two days, and it's still below its 20- and 50-day averages.","Q3 merchant sales (GMV) slightly missed; gross margins under pressure.","Swings about twice as much as the market (beta about 2).","Priced high: about 75–80× earnings."],
+      hist:[["2026-10-23",168.68],["2026-10-26",168.18],["2026-10-27",165.81],["2026-10-28",168.22],["2026-10-29",166.89],["2026-10-30",157.49],["2026-11-02",156.22],["2026-11-03",142.57],["2026-11-04",153.03],["2026-11-05",143.75],["2026-11-06",148.91],["2026-11-09",152.06],["2026-11-10",146.61],["2026-11-11",149.26],["2026-11-12",146.78],["2026-11-13",147.09],["2026-11-16",147.81],["2026-11-17",141.90],["2026-11-18",139.42],["2026-11-19",131.97],["2026-11-20",123.72],["2026-11-23",134.30],["2026-11-24",132.31]],
+      guess:[{d:"2026-11-25",p:127.66,why:"Now: down about 3.5% today."},{d:"2026-11-27",p:131,why:"Black Friday shopping starts; early sales headlines help."},{d:"2026-12-01",p:138,why:"Shopify posts record weekend merchant sales (it has most years)."},{d:"2026-12-18",p:136,why:"Settles; still below its 50-day average of about US$157."},{d:"2027-03-01",p:148,why:"Slow recovery toward analyst targets if growth holds."}],
+      ccy:"CAD", entryCAD:191, investedCAD:2000 },
     { t:"AMZN", name:"Amazon", score:82, risk:"Medium",
       price:267.90, priceNote:"about midday Nov 11", target:326.99,
       event:{d:"2026-11-27", label:"Black Friday / holiday shopping", s:[[40,3],[40,0],[20,-4]]},
@@ -351,7 +351,7 @@ tr:last-child td{border-bottom:0}
   ];
 
   // ---------- state ----------
-  let CUR="CAD", cur=null, st=null, sim=null, geom=null, TODAY="2026-11-23", DATA_NOTE="";
+  let CUR="CAD", cur=null, st=null, sim=null, geom=null, TODAY="2026-11-25", DATA_NOTE="";
   const mkt=()=>cur.sold?cur.price:st.price;
   const canFetchOut = location.protocol==="https:" && /github\.io$/.test(location.hostname);
   const pos = {}; // per-ticker position state (USD)
@@ -428,7 +428,7 @@ tr:last-child td{border-bottom:0}
     $("dFacts").textContent="Price "+fmt$(cur.price)+" ("+cur.priceNote+") · analyst average target "+fmt$(cur.target)+" · next event: "+cur.event.label+".";
     $("posTitle").textContent=cur.sold?"Your trade (sold)":cur.owned?"Your position":"If you invest";
     $("nowLbl").textContent=cur.sold?"What you got by selling":"Selling today";
-    $("editNote").textContent=cur.owned?"You bought at C$191. Set \"Amount invested\" to what you actually put in (it starts at C$1,000).":cur.sold?"Edit the price to your actual sale price for the exact result.":"Starts with your TTWO money (about US$1,099) bought at today's price. Type in whichever currency is selected.";
+    $("editNote").textContent=cur.owned?"You bought C$2,000 at C$191 a share.":cur.sold?"Edit the price to your actual sale price for the exact result.":"Starts with your TTWO money (about US$1,099) bought at today's price. Type in whichever currency is selected.";
     $("lgGta5").hidden=!cur.gta5; $("ttwoCompare").hidden=!cur.gta5;
     $("liveStatus").textContent="Price: "+cur.priceNote+(cur.priceNote.endsWith(".")?"":".")+(canFetchOut?" Press Update for the live price.":" Tap Update, then send it to Claude to refresh.");
     $("chartNote").textContent="Left: actual daily closes. Right: where most simulated prices land, using this stock's real recent swings. Dotted line: "+cur.event.label+", "+shortDate(cur.event.d)+".";
@@ -732,6 +732,7 @@ tr:last-child td{border-bottom:0}
       const x=d.stocks[s.t]; if(!x||!x.hist||x.hist.length<3) return;
       const rows=x.hist.filter(r=>r[1]>0);
       const last=rows[rows.length-1];
+      if(s.priceDate && last[0]<s.priceDate){ s.hist=rows; if(s.priceDate>latest) latest=s.priceDate; return; }
       s.hist=rows.slice(0,-1); s.price=last[1]; s.priceNote="close "+shortDate(last[0]);
       if(last[0]>latest) latest=last[0]; if(last[0]>dataLatest) dataLatest=last[0];
       if(s.owned){ pos[s.t].price=s.price; }
